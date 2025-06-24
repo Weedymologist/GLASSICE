@@ -123,6 +123,12 @@
             color: var(--text-color);
             opacity: 0.7;
         }
+        .creation-header h3#mode-title { /* Added styling for new mode-title */
+            font-size: 1.2em;
+            font-family: var(--font-body);
+            color: var(--system-accent);
+            margin-top: 10px;
+        }
         .form-group {
             margin-bottom: 15px; /* Reduced margin */
         }
@@ -342,7 +348,7 @@
         }
         .input-modal-competitive > div {
             flex: none; /* Prevent flex-grow for stacked items */
-            width: 100%; /* Ensure full width when stacked */
+            width: 100%;
             display: flex;
             flex-direction: column;
             gap: 8px; /* Reduced gap */
@@ -416,6 +422,37 @@
             flex-grow: 1; /* Allow buttons to grow */
             min-width: 180px; /* Ensure they don't get too small */
         }
+
+        /* NEW: Sandbox Combat Actions Container */
+        .sandbox-combat-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border: 1px dashed var(--border-color);
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .sandbox-combat-actions label {
+            color: var(--system-accent);
+            font-size: 0.9em;
+        }
+        .sandbox-combat-actions input {
+            background: rgba(0,0,0,0.2);
+        }
+        .sandbox-combat-actions button {
+            background-color: var(--system-accent);
+            color: var(--bg-color);
+            border: 2px solid var(--system-accent);
+            text-shadow: none;
+            box-shadow: 0 0 5px var(--system-accent);
+        }
+        .sandbox-combat-actions button:hover:not(:disabled) {
+            background-color: transparent;
+            color: var(--system-accent);
+            box-shadow: 0 0 10px var(--system-accent);
+        }
+
 
         /* Keyframe Animations */
         @keyframes fadeIn {
@@ -536,7 +573,7 @@
                 <h2>v27.0 // Maestro</h2>
             </header>
             <div class="mode-selection">
-                <button id="launch-single-player-btn">Launch Single Player Chronicle</button>
+                <button id="launch-sandbox-btn">Launch Sandbox Chronicle</button> <!-- Renamed from single player -->
                 <button id="launch-competitive-btn">Launch Competitive Chronicle</button>
             </div>
         </div>
@@ -559,7 +596,7 @@
         <div class="creation-container">
             <header class="creation-header">
                 <h2>Genesis Protocol</h2>
-                <h3>Dynamic Narrative Setup</h3>
+                <h3 id="mode-title">Dynamic Narrative Setup</h3> <!-- New: To display selected mode -->
             </header>
             <main class="creation-form">
                 <section class="form-group">
@@ -572,7 +609,7 @@
                         <input type="text" id="player-side-name-input" placeholder="E.g., The Rebel Alliance, Godzilla, The Knights of Sol"></input>
                     </section>
                     <section class="form-group" id="opponent-side-name-form-group">
-                        <label for="opponent-side-name-input">Opponent's Side Name (Leave empty for Single Player):</label>
+                        <label for="opponent-side-name-input">Opponent's Side Name (Competitive Only):</label>
                         <input type="text" id="opponent-side-name-input" placeholder="E.g., The Galactic Empire, Dallas Cowboys, The Shadow Cult"></input>
                     </section>
                 </div>
@@ -584,8 +621,14 @@
                     <label for="initial-opponent-side-prompt" style="color: var(--opponent-color);" id="initial-opponent-side-label">Opponent's Side Opening Strategy & Composition (Competitive Only):</label>
                     <textarea id="initial-opponent-side-prompt" placeholder="Opponent's characters (e.g., Vader, Stormtroopers) and their initial actions/strategy."></textarea>
                 </section>
+                
+                <!-- NEW: GM Selection for Sandbox Mode (hidden for competitive) -->
+                <section class="form-group" id="gm-selection-group">
+                    <label for="gm-selector">Select Director:</label>
+                    <select id="gm-selector"></select>
+                </section>
                 <section class="form-group">
-                    <label>Director:</label>
+                    <label>Selected Director:</label>
                     <p id="selected-gm-display" style="color: var(--primary-accent); font-family: var(--font-heading); font-size: 1.1em;"></p>
                 </section>
             </main>
@@ -612,7 +655,7 @@
                     </div>
                 </form>
             </div>
-            <div class="opponent-side-input">
+            <div class="opponent-side-input hidden" id="opponent-input-container"> <!-- Added ID -->
                 <h3 id="opponent-side-label" style="color: var(--opponent-color);">Opponent Side: Opponent</h3>
                 <form id="chat-form-opponent-side" class="chat-form">
                     <textarea id="user-input-opponent-side" placeholder="Describe Opponent's actions (for competitive play only)..." autocomplete="off"></textarea>
@@ -621,8 +664,15 @@
                     </div>
                 </form>
             </div>
+            <!-- NEW: Sandbox Combat Actions Container -->
+            <div class="sandbox-combat-actions hidden" id="sandbox-combat-actions-container">
+                <h3>Initiate Combat</h3>
+                <label for="sandbox-opponent-description">Who/What do you want to fight?</label>
+                <input type="text" id="sandbox-opponent-description" placeholder="E.g., A pack of dire wolves, The rogue AI, A rival adventurer">
+                <button id="initiate-combat-btn">Initiate Combat</button>
+            </div>
         </div>
-        <p class="input-hint-competitive">Hold SPACE to Speak (Player Side) | Tap SPACE to Type (Player Side) | Click anywhere to Type (Player Side)</p>
+        <p class="input-hint-competitive" id="input-hint-text">Hold SPACE to Speak (Player Side) | Tap SPACE to Type (Player Side) | Click anywhere to Type (Player Side)</p>
         <div class="game-over-buttons hidden"> <!-- NEW: Container for game over buttons -->
             <button id="new-game-btn">Start New Chronicle</button>
         </div>
@@ -636,7 +686,7 @@
             const genesisScreen = document.getElementById('genesis-screen'); // This is the main game screen container
             const creationScreen = document.getElementById('creation-screen-rpg'); // Moved to top level for toggling
 
-            const launchSinglePlayerBtn = document.getElementById('launch-single-player-btn');
+            const launchSandboxBtn = document.getElementById('launch-sandbox-btn'); // Renamed
             const launchCompetitiveBtn = document.getElementById('launch-competitive-btn');
 
             // Store game state for dynamic narrative mode
@@ -645,17 +695,18 @@
                 playerSideName: 'Player',
                 opponentSideName: 'Opponent',
                 currentAudio: null,
-                personas: [],
+                personas: [], // Cached personas from API
                 turnPhase: 'player_side_input', // 'player_side_input', 'adjudicating'
                 playerSideInputBuffer: '',
                 opponentSideInputBuffer: '',
-                isSinglePlayer: false, // Determined by launch button
+                gameMode: 'sandbox', // NEW: 'sandbox', 'competitive', 'sandbox_combat'
                 isListening: false, // STT: State for microphone recording
-                gmPersonaId: null, // Stored once determined by mode
-                currentRound: 0, // NEW: Current round number for competitive
-                playerHP: 0,     // NEW: Player's current HP
-                opponentHP: 0,   // NEW: Opponent's current HP
-                gameOver: false  // NEW: Game over flag
+                gmPersonaId: null, // Stored once determined by mode or selection
+                currentRound: 0, // Current round number for competitive/combat
+                playerHP: 0,     // Player's current HP
+                opponentHP: 0,   // Opponent's current HP
+                gameOver: false,  // Game over flag
+                sandboxOpponentName: null // NEW: Stores the name of the opponent in sandbox_combat
             };
 
             let mediaRecorder; // STT: MediaRecorder instance for audio input
@@ -663,7 +714,7 @@
             let spacebarTimer = null; // STT: Timer for distinguishing tap vs. hold on spacebar
             let isHoldingSpace = false; // STT: Flag for spacebar hold state
 
-            // Global UI elements for dynamic narrative mode (from competitive-input-overlay)
+            // Global UI elements for dynamic narrative mode
             const competitiveInputOverlay = document.getElementById('competitive-input-overlay');
             const turnStatus = document.getElementById('turn-status');
             const userInputPlayerSide = document.getElementById('user-input-player-side');
@@ -673,38 +724,58 @@
             const chatFormOpponentSide = document.getElementById('chat-form-opponent-side'); // Still exists for opponent's textarea
             const playerSideLabel = document.getElementById('player-side-label');
             const opponentSideLabel = document.getElementById('opponent-side-label');
-            const opponentSideContainer = document.querySelector('.opponent-side-input'); // Select the div container
+            const opponentInputContainer = document.getElementById('opponent-input-container'); // Select the div container
+
             const micBtnRpg = document.getElementById('mic-btn-rpg');
             const saveBtnRpg = document.getElementById('save-btn-rpg');
-            const gameStatsDisplay = document.getElementById('game-stats'); // NEW: Game stats display
-            const gameOverButtonsContainer = document.querySelector('.game-over-buttons'); // NEW: Game over buttons container
-            const newGameBtn = document.getElementById('new-game-btn'); // NEW: New game button
+            const gameStatsDisplay = document.getElementById('game-stats'); // Game stats display
+            const gameOverButtonsContainer = document.querySelector('.game-over-buttons'); // Game over buttons container
+            const newGameBtn = document.getElementById('new-game-btn'); // New game button
+
+            // NEW Sandbox combat elements
+            const sandboxCombatActionsContainer = document.getElementById('sandbox-combat-actions-container');
+            const sandboxOpponentDescriptionInput = document.getElementById('sandbox-opponent-description');
+            const initiateCombatBtn = document.getElementById('initiate-combat-btn');
+            const inputHintText = document.getElementById('input-hint-text'); // Hint text for input
 
             // Elements from Creation Screen (for setup)
-            let ui = {}; 
+            let ui = {};
             ui.chatLog = document.getElementById('chat-log-rpg'); // chatLog is directly in genesisScreen
             // Loader related elements
             const loaderOverlay = document.getElementById('loading-overlay');
             const loaderText = document.getElementById('loader-text-rpg');
 
 
-            // Helper to update the state of the input forms and labels
+            // Helper to update the state of the input forms and labels based on gameMode
             function updateInputState() {
-                playerSideLabel.textContent = `${dynamicGameState.playerSideName}:`;
-                opponentSideLabel.textContent = `${dynamicGameState.opponentSideName}:`;
+                const isCombatMode = dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat';
+                const isSandboxOpenEnded = dynamicGameState.gameMode === 'sandbox';
 
-                // Hide/show competitive specific elements
-                if (dynamicGameState.isSinglePlayer) {
-                    opponentSideContainer.classList.add('hidden');
-                    micBtnRpg.classList.remove('hidden');
-                    saveBtnRpg.classList.remove('hidden');
-                    gameStatsDisplay.classList.add('hidden');
-                } else {
-                    opponentSideContainer.classList.remove('hidden');
-                    micBtnRpg.classList.add('hidden');
-                    saveBtnRpg.classList.add('hidden');
-                    gameStatsDisplay.classList.remove('hidden');
-                    gameStatsDisplay.textContent = `Round: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP}`;
+                // Labels
+                playerSideLabel.textContent = `${dynamicGameState.playerSideName}:`;
+                opponentSideLabel.textContent = `${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName}:`;
+
+                // Input Fields and Buttons visibility
+                // Opponent input field: only shown in 'competitive' mode
+                opponentInputContainer.classList.toggle('hidden', dynamicGameState.gameMode !== 'competitive');
+                // Sandbox combat initiation area: only shown in 'sandbox' (open-ended) mode
+                sandboxCombatActionsContainer.classList.toggle('hidden', !isSandboxOpenEnded);
+
+                // Mic and Save buttons: always shown for sandbox and sandbox_combat. Hidden for competitive.
+                micBtnRpg.classList.toggle('hidden', dynamicGameState.gameMode === 'competitive');
+                saveBtnRpg.classList.toggle('hidden', false); // Always show save button
+
+                // Game Stats display: only shown in combat modes
+                gameStatsDisplay.classList.toggle('hidden', !isCombatMode);
+                if (isCombatMode) {
+                    gameStatsDisplay.textContent = `Round: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP}`;
+                }
+
+                // Input hint text
+                if (isSandboxOpenEnded) {
+                    inputHintText.textContent = "Hold SPACE to Speak (Your Side) | Tap SPACE to Type (Your Side) | Click anywhere to Type (Your Side)";
+                } else if (isCombatMode) {
+                    inputHintText.textContent = "Enter actions for your side" + (dynamicGameState.gameMode === 'competitive' ? " and the opponent." : ".");
                 }
 
                 // Handle Game Over state
@@ -715,7 +786,7 @@
                     submitTurnBtn.disabled = true;
                     micBtnRpg.disabled = true;
                     saveBtnRpg.disabled = false; // Allow saving chronicle at the end
-                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
+                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
                     gameOverButtonsContainer.classList.remove('hidden'); // Show new game button
                     return; // Exit early if game is over
                 }
@@ -724,20 +795,30 @@
                 gameOverButtonsContainer.classList.add('hidden'); // Hide new game button
                 switch (dynamicGameState.turnPhase) {
                     case 'player_side_input':
-                        turnStatus.textContent = dynamicGameState.isSinglePlayer ? `Your Turn: Describe Actions` : `It's Your Turn, ${dynamicGameState.playerSideName} & ${dynamicGameState.opponentSideName}!`;
+                        if (isSandboxOpenEnded) {
+                            turnStatus.textContent = `Your Turn: Describe Actions (Sandbox Mode)`;
+                            userInputPlayerSide.placeholder = `Describe your actions as ${dynamicGameState.playerSideName}...`;
+                            userInputOpponentSide.placeholder = `(Opponent input not needed in Sandbox)`;
+                        } else if (dynamicGameState.gameMode === 'sandbox_combat') {
+                            turnStatus.textContent = `Combat Round ${dynamicGameState.currentRound}: Describe Your Attack/Defense!`;
+                            userInputPlayerSide.placeholder = `Describe your combat actions...`;
+                            userInputOpponentSide.placeholder = `(AI will act for ${dynamicGameState.sandboxOpponentName})`; // Opponent input disabled
+                        } else { // competitive
+                            turnStatus.textContent = `It's Your Turn, ${dynamicGameState.playerSideName} & ${dynamicGameState.opponentSideName}!`;
+                            userInputPlayerSide.placeholder = `Describe ${dynamicGameState.playerSideName}'s actions...`;
+                            userInputOpponentSide.placeholder = `Describe ${dynamicGameState.opponentSideName}'s actions...`;
+                        }
                         userInputPlayerSide.disabled = false;
-                        userInputOpponentSide.disabled = dynamicGameState.isSinglePlayer;
+                        userInputOpponentSide.disabled = dynamicGameState.gameMode !== 'competitive'; // Only competitive allows opponent input
                         submitTurnBtn.disabled = false;
                         micBtnRpg.disabled = false;
                         saveBtnRpg.disabled = false;
-                        userInputPlayerSide.placeholder = dynamicGameState.isSinglePlayer ? `Describe your actions as ${dynamicGameState.playerSideName}...` : `Describe ${dynamicGameState.playerSideName}'s actions...`;
-                        userInputOpponentSide.placeholder = `Describe ${dynamicGameState.opponentSideName}'s actions...`;
                         userInputPlayerSide.focus();
                         break;
                     case 'adjudicating':
                         turnStatus.textContent = "The Director is Adjudicating...";
                         userInputPlayerSide.disabled = false; // Allow typing during narration
-                        userInputOpponentSide.disabled = dynamicGameState.isSinglePlayer;
+                        userInputOpponentSide.disabled = true; // Always disable opponent input while adjudicating
                         submitTurnBtn.disabled = true;
                         micBtnRpg.disabled = true;
                         saveBtnRpg.disabled = true;
@@ -758,11 +839,14 @@
                 ui.initialPlayerSideLabel = document.getElementById('initial-player-side-label');
                 ui.initialOpponentSidePromptFormGroup = document.getElementById('initial-opponent-side-prompt-form-group');
                 ui.opponentSideNameFormGroup = document.getElementById('opponent-side-name-form-group');
+                ui.gmSelector = document.getElementById('gm-selector'); // NEW GM Selector
+                ui.gmSelectionGroup = document.getElementById('gm-selection-group'); // NEW GM Selection Group
+                ui.modeTitle = document.getElementById('mode-title'); // NEW Mode Title
             }
 
             // Attempts to unlock Web Audio API context on user interaction
             function unlockAudioContext() {
-                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
+                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
                 silentSound.volume = 0;
                 silentSound.play().catch(() => {});
                 console.log("[PANE GLASS] Audio context unlocked.");
@@ -926,10 +1010,15 @@
                 }
                 
                 // If competitive, log opponent's input from the field immediately
-                if (!dynamicGameState.isSinglePlayer) {
+                // Only for 'competitive' mode, as 'sandbox_combat' opponent action is generated by GM
+                if (dynamicGameState.gameMode === 'competitive') {
                     dynamicGameState.opponentSideInputBuffer = userInputOpponentSide.value.trim();
-                    await addLog(dynamicGameState.opponentSideInputBuffer, dynamicGameState.opponentSideName, 'opponent-side');
+                    if (dynamicGameState.opponentSideInputBuffer) { // Only log if there's actual input
+                        await addLog(dynamicGameState.opponentSideInputBuffer, dynamicGameState.opponentSideName, 'opponent-side');
+                    }
                     userInputOpponentSide.value = '';
+                } else {
+                    dynamicGameState.opponentSideInputBuffer = ''; // Ensure it's empty for non-competitive modes
                 }
 
                 setLoading(true, isVoiceInput ? "Transcribing Voice Input..." : "Processing Actions...");
@@ -939,7 +1028,7 @@
                     const payload = isVoiceInput ? formData : JSON.stringify({ 
                         playerSideMessage: dynamicGameState.playerSideInputBuffer, 
                         opponentSideMessage: dynamicGameState.opponentSideInputBuffer,
-                        isSinglePlayer: dynamicGameState.isSinglePlayer 
+                        gameMode: dynamicGameState.gameMode // Pass current game mode
                     });
                     const options = isVoiceInput ? { method: 'POST', body: payload } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
 
@@ -950,6 +1039,8 @@
                     dynamicGameState.playerHP = data.playerHP; // Update player HP
                     dynamicGameState.opponentHP = data.opponentHP; // Update opponent HP
                     dynamicGameState.gameOver = data.gameOver || false;
+                    dynamicGameState.gameMode = data.gameMode; // IMPORTANT: gameMode might change (e.g., sandbox_combat -> sandbox)
+                    dynamicGameState.sandboxOpponentName = data.sandboxOpponentName || null; // Clear if combat ended
 
                     // 1. Log transcribed message if it was voice input (this is *before* audio/text playback)
                     if (isVoiceInput && data.transcribedMessage) {
@@ -971,7 +1062,7 @@
                             resolve(); // Resolve this promise when audio finishes
                         }, 1500); // 1.5 second delay before speech starts
                     });
-                    await Promise.all([textDisplayPromise, audioPlayPromise]); // Wait for both text typing AND audio playback to finish
+                    await Promise.all([textDisplayPromise, audioPlayPromise]);
 
 
                     // Prepare for next turn OR handle game over
@@ -984,18 +1075,20 @@
                         await addLog(`Game Over! ${data.finalReason || "The conflict reached a decisive end."}`, "System", "system-error");
                         // Inputs will be permanently disabled by updateInputState()
                     } else {
-                        dynamicGameState.turnPhase = 'player_side_input';
-                        let turnPrompt = `It's your turn, ${dynamicGameState.playerSideName}: describe your next actions.`;
-                        if (!dynamicGameState.isSinglePlayer) { // Competitive mode specific prompt
+                        // For sandbox, the GM's narration *is* the prompt. For combat modes, we give a status update.
+                        if (dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat') {
+                            let turnPrompt;
+                            const currentOpponentName = dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName;
                             if (data.turnOutcomeWinner === 'opponent_side') {
                                 turnPrompt = `${dynamicGameState.playerSideName} was outmaneuvered in Round ${dynamicGameState.currentRound}. You are at ${dynamicGameState.playerHP} HP! Describe your next actions.`;
                             } else if (data.turnOutcomeWinner === 'player_side') {
-                                turnPrompt = `Victory in Round ${dynamicGameState.currentRound}! ${dynamicGameState.opponentSideName} is at ${dynamicGameState.opponentHP} HP. Describe your next actions.`;
-                            } else {
+                                turnPrompt = `Victory in Round ${dynamicGameState.currentRound}! ${currentOpponentName} is at ${dynamicGameState.opponentHP} HP. Describe your next actions.`;
+                            } else { // Draw or undefined
                                 turnPrompt = `Round ${dynamicGameState.currentRound} was a draw. Both sides are at ${dynamicGameState.playerHP} HP. Describe your next actions.`;
                             }
+                            await addLog(turnPrompt, "System", "system-info");
                         }
-                        await addLog(turnPrompt, "System", "system-info");
+                        dynamicGameState.turnPhase = 'player_side_input';
                     }
                     toggleCompetitiveInputOverlay(true); // Show inputs after everything is loaded, with correct state
                     updateInputState(); // Ensure UI reflects final state (disabled if game over)
@@ -1010,28 +1103,29 @@
             };
 
 
-            // Function to prepare chronicle for SINGLE PLAYER mode
-            const prepareSinglePlayerChronicle = async () => {
+            // Function to prepare chronicle for SANDBOX mode
+            const prepareSandboxChronicle = async () => {
                 const gameSettingPrompt = ui.prompt.value.trim();
                 const playerSideName = ui.playerSideNameInput.value.trim();
                 const initialPlayerSidePrompt = ui.initialPlayerSidePrompt.value.trim();
-                const gmId = "The_Conductor"; // Fixed GM for single player
+                const selectedGmId = ui.gmSelector.value; // Get selected GM for sandbox
 
                 if (!gameSettingPrompt || !playerSideName || !initialPlayerSidePrompt) {
                     alert("Please provide the game setting, your side's name, and your side's opening strategy.");
                     return;
                 }
 
-                dynamicGameState.isSinglePlayer = true;
+                dynamicGameState.gameMode = 'sandbox'; // Set new game mode
                 dynamicGameState.playerSideName = playerSideName;
-                dynamicGameState.opponentSideName = "Opponent"; // Default, hidden
-                dynamicGameState.gmPersonaId = gmId; // Set GM for this game
+                dynamicGameState.opponentSideName = ""; // Explicitly empty for sandbox
+                dynamicGameState.gmPersonaId = selectedGmId; // Set GM for this game
                 dynamicGameState.currentRound = 0; // Reset
-                dynamicGameState.playerHP = 0; // Not applicable for single player but reset
-                dynamicGameState.opponentHP = 0; // Not applicable for single player but reset
+                dynamicGameState.playerHP = 0; // Not applicable for open-ended sandbox
+                dynamicGameState.opponentHP = 0; // Not applicable for open-ended sandbox
                 dynamicGameState.gameOver = false; // Reset
+                dynamicGameState.sandboxOpponentName = null; // Clear any previous opponent
 
-                setLoading(true, "Preparing Chronicle...");
+                setLoading(true, "Preparing Sandbox Chronicle...");
 
                 try {
                     const data = await fetchAPI('/api/dynamic-narrative/start', {
@@ -1040,37 +1134,37 @@
                         body: JSON.stringify({
                             gameSettingPrompt: gameSettingPrompt,
                             playerSideName: dynamicGameState.playerSideName,
-                            opponentSideName: dynamicGameState.opponentSideName, // Pass opponent name even if empty
+                            opponentSideName: dynamicGameState.opponentSideName, // Will be empty
                             initialPlayerSidePrompt: initialPlayerSidePrompt,
-                            initialOpponentSidePrompt: "", // Ensure empty for single player
-                            gmPersonaId: dynamicGameState.gmPersonaId,
+                            initialOpponentSidePrompt: "", // Ensure empty for sandbox
+                            selectedGmPersonaId: dynamicGameState.gmPersonaId,
+                            gameMode: dynamicGameState.gameMode,
                         })
                     });
 
                     dynamicGameState.currentSceneId = data.sceneId;
+                    dynamicGameState.gameMode = data.gameMode; // Update with server's confirmed mode
                     
                     creationScreen.classList.remove('active'); // Hide creation screen
                     genesisScreen.classList.add('active'); // Show main game screen (log overlay)
 
                     setLoading(false); // Hide loader before narration
                     // Populate text and play audio simultaneously with offset
-                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'The Conductor');
+                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
                     const audioPlayPromise = new Promise(resolve => {
                         setTimeout(async () => {
                             await playAudio(data.response.audio_base_64);
                             resolve(); // Resolve this promise when audio finishes
                         }, 1500); // 1.5 second delay before speech starts
                     });
-                    await Promise.all([textDisplayPromise, audioPlayPromise]); // Wait for both text typing AND audio playback to finish
-                    
-                    await addLog(`It's your turn, ${dynamicGameState.playerSideName}: describe your next actions.`, "System", "system-info");
-                    
+                    await Promise.all([textDisplayPromise, audioPlayPromise]);
+                                        
                     toggleCompetitiveInputOverlay(true); // Show inputs
                     dynamicGameState.turnPhase = 'player_side_input';
                     updateInputState();
 
                 } catch (e) {
-                    console.error("Failed to prepare single player chronicle:", e);
+                    console.error("Failed to prepare sandbox chronicle:", e);
                     setLoading(false);
                 }
             };
@@ -1085,11 +1179,11 @@
                 const gmId = "Tactician_GM"; // Fixed GM for competitive
 
                 if (!gameSettingPrompt || !playerSideName || !opponentSideName || !initialPlayerSidePrompt || !initialOpponentSidePrompt) {
-                    alert("Please provide the game setting, both sides' names, both sides' opening strategies.");
+                    alert("Please provide the game setting, both sides' names, and both sides' opening strategies.");
                     return;
                 }
 
-                dynamicGameState.isSinglePlayer = false;
+                dynamicGameState.gameMode = 'competitive'; // Set new game mode
                 dynamicGameState.playerSideName = playerSideName;
                 dynamicGameState.opponentSideName = opponentSideName;
                 dynamicGameState.gmPersonaId = gmId; // Set GM for this game
@@ -1097,8 +1191,9 @@
                 dynamicGameState.playerHP = 3; // Starting HP for competitive
                 dynamicGameState.opponentHP = 3; // Starting HP for competitive
                 dynamicGameState.gameOver = false; // Reset
+                dynamicGameState.sandboxOpponentName = null; // Clear any previous opponent
 
-                setLoading(true, "Preparing Chronicle...");
+                setLoading(true, "Preparing Competitive Chronicle...");
 
                 try {
                     const data = await fetchAPI('/api/dynamic-narrative/start', {
@@ -1110,13 +1205,13 @@
                             opponentSideName: dynamicGameState.opponentSideName,
                             initialPlayerSidePrompt: initialPlayerSidePrompt,
                             initialOpponentSidePrompt: initialOpponentSidePrompt,
-                            gmPersonaId: dynamicGameState.gmPersonaId,
+                            selectedGmPersonaId: dynamicGameState.gmPersonaId,
+                            gameMode: dynamicGameState.gameMode,
                         })
                     });
 
                     dynamicGameState.currentSceneId = data.sceneId;
-                    
-                    // Update game state from server response (NEW)
+                    dynamicGameState.gameMode = data.gameMode;
                     dynamicGameState.currentRound = data.currentRound || 0;
                     dynamicGameState.playerHP = data.playerHP;
                     dynamicGameState.opponentHP = data.opponentHP;
@@ -1134,7 +1229,7 @@
                             resolve(); // Resolve this promise when audio finishes
                         }, 1500); // 1.5 second delay before speech starts
                     });
-                    await Promise.all([textDisplayPromise, audioPlayPromise]); // Wait for both text typing AND audio playback to finish
+                    await Promise.all([textDisplayPromise, audioPlayPromise]);
                     
                     await addLog(`It's your turn, ${dynamicGameState.playerSideName} & ${dynamicGameState.opponentSideName}: describe your next actions.`, "System", "system-info");
                     
@@ -1168,7 +1263,7 @@
                 }
             };
 
-            // NEW: Function to reset game state and return to hub
+            // Function to reset game state and return to hub
             const startNewGame = () => {
                 // Reset dynamicGameState to initial values
                 dynamicGameState = {
@@ -1176,17 +1271,18 @@
                     playerSideName: 'Player',
                     opponentSideName: 'Opponent',
                     currentAudio: null,
-                    personas: [], // Personas will be reloaded or cached from initial fetch
+                    personas: dynamicGameState.personas, // Keep cached personas
                     turnPhase: 'player_side_input',
                     playerSideInputBuffer: '',
                     opponentSideInputBuffer: '',
-                    isSinglePlayer: false, // Will be set by launch button click
+                    gameMode: 'sandbox', // Default for new game start
                     isListening: false,
                     gmPersonaId: null,
                     currentRound: 0,
                     playerHP: 0,
                     opponentHP: 0,
-                    gameOver: false
+                    gameOver: false,
+                    sandboxOpponentName: null
                 };
 
                 // Clear chat log
@@ -1196,6 +1292,7 @@
                 genesisScreen.classList.remove('active');
                 competitiveInputOverlay.classList.add('hidden');
                 creationScreen.classList.add('hidden'); // Ensure creation screen is also hidden
+                creationScreen.classList.remove('active');
 
                 // Show hub screen
                 hubScreen.classList.add('active');
@@ -1203,16 +1300,36 @@
                 // Clear input fields (just in case they were holding text)
                 userInputPlayerSide.value = '';
                 userInputOpponentSide.value = '';
+                sandboxOpponentDescriptionInput.value = ''; // Clear sandbox opponent input
 
-                // Restore initial display for creation screen form (important for new game start)
-                document.getElementById('opponent-side-name-form-group').classList.remove('hidden');
-                document.getElementById('initial-opponent-side-prompt-form-group').classList.remove('hidden');
-                document.getElementById('initial-player-side-label').textContent = "Your Side's Opening Strategy & Composition:";
-                document.getElementById('selected-gm-display').textContent = "Loading Directors..."; // Reset GM display text
-                
-                // Re-fetch personas to ensure they are re-cached for a clean start if needed (optional, they are global)
-                initializeUIAndData(); // Re-runs data load and re-attaches hub listeners
+                // Restore initial display for creation screen form
+                ui.opponentSideNameFormGroup.classList.remove('hidden');
+                ui.initialOpponentSidePromptFormGroup.classList.remove('hidden');
+                ui.initialPlayerSideLabel.textContent = "Your Side's Opening Strategy & Composition:";
+                ui.gmSelectionGroup.classList.remove('hidden'); // Ensure GM selector is visible for new sandbox game
+                ui.modeTitle.textContent = "Dynamic Narrative Setup"; // Reset title
+
+                populateGmSelector(); // Repopulate GM selector if needed and set default
             };
+
+            // Function to populate GM selector
+            async function populateGmSelector() {
+                ui.gmSelector.innerHTML = ''; // Clear previous options
+                // Filter only 'gm' role personas
+                const gmPersonas = dynamicGameState.personas.filter(p => p.role === 'gm');
+                gmPersonas.forEach(persona => {
+                    const option = document.createElement('option');
+                    option.value = persona.actor_id;
+                    option.textContent = persona.name;
+                    ui.gmSelector.appendChild(option);
+                });
+                // Select 'The Conductor' by default for Sandbox, or first available if 'The Conductor' not present
+                ui.gmSelector.value = 'The_Conductor';
+                if (!ui.gmSelector.value && gmPersonas.length > 0) { // If Conductor not found, pick first
+                    ui.gmSelector.value = gmPersonas[0].actor_id;
+                }
+                ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "No Director Selected";
+            }
 
 
             // Main initialization function for UI and data
@@ -1222,10 +1339,7 @@
                 try {
                     const personasData = await fetchAPI('/api/personas');
                     dynamicGameState.personas = personasData; // Cache personas
-
-                    // Set up dynamic GM selection display on creation screen
-                    // This will be overridden by the specific launch buttons, but a default is good.
-                    ui.selectedGmDisplay.textContent = dynamicGameState.isSinglePlayer ? "The Conductor" : "The Grand Tactician";
+                    populateGmSelector(); // Populate GM selector on init
                 } catch (e) {
                     const startButton = document.getElementById('start-btn-rpg');
                     if (startButton) {
@@ -1235,34 +1349,56 @@
                     console.error("Initialization failed:", e);
                 }
                 
-                // Attach event listener to the SINGLE PLAYER launch button
-                launchSinglePlayerBtn.addEventListener('click', () => {
+                // Attach event listener to the SANDBOX launch button (renamed)
+                launchSandboxBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
-                    creationScreen.classList.remove('hidden'); // Make sure creation screen is visible
-                    creationScreen.classList.add('active'); // Make sure creation screen is active
+                    creationScreen.classList.add('active');
                     
-                    // Configure creation screen for single player
-                    document.getElementById('opponent-side-name-form-group').classList.add('hidden');
-                    document.getElementById('initial-opponent-side-prompt-form-group').classList.add('hidden');
-                    document.getElementById('initial-player-side-label').textContent = "Your Side's Opening Strategy & Composition:";
-                    document.getElementById('start-btn-rpg').removeEventListener('click', prepareCompetitiveChronicle); // Ensure no old listener
-                    document.getElementById('start-btn-rpg').addEventListener('click', prepareSinglePlayerChronicle);
-                    ui.selectedGmDisplay.textContent = "The Conductor"; // Display fixed GM
+                    // Configure creation screen for sandbox
+                    ui.opponentSideNameFormGroup.classList.add('hidden');
+                    ui.initialOpponentSidePromptFormGroup.classList.add('hidden');
+                    ui.initialPlayerSideLabel.textContent = "Your Side's Opening Strategy & Composition:";
+                    
+                    ui.gmSelectionGroup.classList.remove('hidden'); // Show GM selection for sandbox
+                    ui.gmSelector.value = 'The_Conductor'; // Default for sandbox
+                    ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "The Conductor"; // Display initial selection
+                    
+                    ui.modeTitle.textContent = "Sandbox Narrative Setup"; // Update title
+                    ui.startBtn.onclick = prepareSandboxChronicle; // Assign directly to prevent multiple listeners
+                    
+                    // Clear fields
+                    ui.playerSideNameInput.value = '';
+                    ui.prompt.value = '';
+                    ui.initialPlayerSidePrompt.value = '';
                 });
 
                 // Attach event listener to the COMPETITIVE launch button
                 launchCompetitiveBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
-                    creationScreen.classList.remove('hidden'); // Make sure creation screen is visible
-                    creationScreen.classList.add('active'); // Make sure creation screen is active
+                    creationScreen.classList.add('active');
 
                     // Configure creation screen for competitive
-                    document.getElementById('opponent-side-name-form-group').classList.remove('hidden');
-                    document.getElementById('initial-opponent-side-prompt-form-group').classList.remove('hidden');
-                    document.getElementById('initial-player-side-label').textContent = "Team Alpha's Opening Strategy & Composition:";
-                    document.getElementById('start-btn-rpg').removeEventListener('click', prepareSinglePlayerChronicle); // Ensure no old listener
-                    document.getElementById('start-btn-rpg').addEventListener('click', prepareCompetitiveChronicle);
-                    ui.selectedGmDisplay.textContent = "The Grand Tactician"; // Display fixed GM
+                    ui.opponentSideNameFormGroup.classList.remove('hidden');
+                    ui.initialOpponentSidePromptFormGroup.classList.remove('hidden');
+                    ui.initialPlayerSideLabel.textContent = "Your Side's Opening Strategy & Composition:";
+
+                    ui.gmSelectionGroup.classList.add('hidden'); // Hide GM selection for competitive
+                    ui.selectedGmDisplay.textContent = "The Grand Tactician (Fixed)"; // Show fixed GM
+                    
+                    ui.modeTitle.textContent = "Competitive Narrative Setup"; // Update title
+                    ui.startBtn.onclick = prepareCompetitiveChronicle; // Assign directly
+
+                    // Clear fields
+                    ui.playerSideNameInput.value = '';
+                    ui.opponentSideNameInput.value = '';
+                    ui.prompt.value = '';
+                    ui.initialPlayerSidePrompt.value = '';
+                    ui.initialOpponentSidePrompt.value = '';
+                });
+
+                // GM Selector Change Listener
+                ui.gmSelector.addEventListener('change', () => {
+                    ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "No Director Selected";
                 });
 
                 // STT: Mic button listeners
@@ -1272,23 +1408,67 @@
                 saveBtnRpg.addEventListener('click', saveAdventure);
                 // NEW: New Game button listener
                 newGameBtn.addEventListener('click', startNewGame);
+                // NEW: Initiate Combat button listener
+                initiateCombatBtn.addEventListener('click', async () => {
+                    if (!sandboxOpponentDescriptionInput.value.trim()) {
+                        alert("Please describe who/what you want to fight.");
+                        return;
+                    }
+
+                    setLoading(true, `Preparing for combat with ${sandboxOpponentDescriptionInput.value.trim()}...`);
+                    try {
+                        const data = await fetchAPI(`/api/dynamic-narrative/${dynamicGameState.currentSceneId}/initiate-sandbox-combat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ opponentDescription: sandboxOpponentDescriptionInput.value.trim() })
+                        });
+
+                        dynamicGameState.gameMode = data.gameMode; // Should now be 'sandbox_combat'
+                        dynamicGameState.currentRound = data.currentRound;
+                        dynamicGameState.playerHP = data.playerHP;
+                        dynamicGameState.opponentHP = data.opponentHP;
+                        dynamicGameState.sandboxOpponentName = data.sandboxOpponentName; // Store the opponent name
+
+                        setLoading(false);
+                        const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                        const audioPlayPromise = new Promise(resolve => {
+                            setTimeout(async () => {
+                                await playAudio(data.response.audio_base_64);
+                                resolve();
+                            }, 1500);
+                        });
+                        await Promise.all([textDisplayPromise, audioPlayPromise]);
+
+                        toggleCompetitiveInputOverlay(true); // Re-show input overlay
+                        dynamicGameState.turnPhase = 'player_side_input';
+                        updateInputState(); // Will now show combat UI (player input enabled, opponent input disabled)
+                        sandboxOpponentDescriptionInput.value = ''; // Clear description field
+                    } catch (e) {
+                        console.error("Failed to initiate sandbox combat:", e);
+                        setLoading(false);
+                    }
+                });
 
 
                 // Combined Submit Button Listener (for both textareas)
                 submitTurnBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    // Prevent submission if game is over
                     if (dynamicGameState.gameOver) {
                         addLog("The chronicle has concluded. Start a new game.", "System", "system-info");
                         return;
                     }
 
                     const playerMessage = userInputPlayerSide.value.trim();
-                    const opponentMessage = userInputOpponentSide.value.trim();
+                    const opponentMessage = userInputOpponentSide.value.trim(); // Will be empty for sandbox/sandbox_combat
 
-                    if (!playerMessage && (!dynamicGameState.isSinglePlayer && !opponentMessage)) {
-                        alert("Please provide actions for at least your side.");
+                    // Validate input based on game mode
+                    if (!playerMessage) {
+                        alert("Please describe actions for your side.");
                         return;
+                    }
+                    if (dynamicGameState.gameMode === 'competitive' && !opponentMessage) {
+                         alert("Please describe actions for the opponent side in competitive mode.");
+                         return;
                     }
 
                     processTurnInput({ message: playerMessage });
@@ -1297,18 +1477,18 @@
 
                 // Click anywhere on screen to bring up input overlay
                 document.body.addEventListener('click', (e) => { 
-                    // Prevent showing input overlay if clicking on the overlay itself, or if game is over
                     if (competitiveInputOverlay.classList.contains('hidden') && dynamicGameState.currentSceneId && 
                         dynamicGameState.turnPhase === 'player_side_input' && !competitiveInputOverlay.contains(e.target) && !dynamicGameState.gameOver) {
                         toggleCompetitiveInputOverlay(true);
                     }
                 });
 
-                // STT: Global keyboard shortcuts for game screen
+                // STT: Global keyboard shortcuts for game screen (adjusted for gameMode)
                 document.addEventListener('keydown', (e) => {
                     if (genesisScreen.classList.contains('active') && e.code === 'Space' && !isHoldingSpace &&
                         document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT' &&
-                        dynamicGameState.turnPhase === 'player_side_input' && dynamicGameState.isSinglePlayer && !dynamicGameState.gameOver) {
+                        dynamicGameState.turnPhase === 'player_side_input' && !dynamicGameState.gameOver &&
+                        (dynamicGameState.gameMode === 'sandbox' || dynamicGameState.gameMode === 'sandbox_combat')) { // Only for sandbox related modes
                         e.preventDefault();
                         isHoldingSpace = true;
                         spacebarTimer = setTimeout(() => {
@@ -1324,7 +1504,6 @@
                         if (dynamicGameState.isListening) {
                             handleMicRelease();
                         } else {
-                            // Only toggle if not already game over.
                             if (!dynamicGameState.gameOver) {
                                 toggleCompetitiveInputOverlay(true);
                             }
