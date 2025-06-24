@@ -738,97 +738,18 @@
             const initiateCombatBtn = document.getElementById('initiate-combat-btn');
             const inputHintText = document.getElementById('input-hint-text'); // Hint text for input
 
-            // Elements from Creation Screen (for setup)
-            let ui = {};
-            ui.chatLog = document.getElementById('chat-log-rpg'); // chatLog is directly in genesisScreen
-            // Loader related elements
-            const loaderOverlay = document.getElementById('loading-overlay');
-            const loaderText = document.getElementById('loader-text-rpg');
-
-
-            // Helper to update the state of the input forms and labels based on gameMode
-            function updateInputState() {
-                const isCombatMode = dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat';
-                const isSandboxOpenEnded = dynamicGameState.gameMode === 'sandbox';
-
-                // Labels
-                playerSideLabel.textContent = `${dynamicGameState.playerSideName}:`;
-                opponentSideLabel.textContent = `${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName}:`;
-
-                // Input Fields and Buttons visibility
-                // Opponent input field: only shown in 'competitive' mode
-                opponentInputContainer.classList.toggle('hidden', dynamicGameState.gameMode !== 'competitive');
-                // Sandbox combat initiation area: only shown in 'sandbox' (open-ended) mode
-                sandboxCombatActionsContainer.classList.toggle('hidden', !isSandboxOpenEnded);
-
-                // Mic and Save buttons: always shown for sandbox and sandbox_combat. Hidden for competitive.
-                micBtnRpg.classList.toggle('hidden', dynamicGameState.gameMode === 'competitive');
-                saveBtnRpg.classList.toggle('hidden', false); // Always show save button
-
-                // Game Stats display: only shown in combat modes
-                gameStatsDisplay.classList.toggle('hidden', !isCombatMode);
-                if (isCombatMode) {
-                    gameStatsDisplay.textContent = `Round: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP}`;
-                }
-
-                // Input hint text
-                if (isSandboxOpenEnded) {
-                    inputHintText.textContent = "Hold SPACE to Speak (Your Side) | Tap SPACE to Type (Your Side) | Click anywhere to Type (Your Side)";
-                } else if (isCombatMode) {
-                    inputHintText.textContent = "Enter actions for your side" + (dynamicGameState.gameMode === 'competitive' ? " and the opponent." : ".");
-                }
-
-                // Handle Game Over state
-                if (dynamicGameState.gameOver) {
-                    turnStatus.textContent = "Chronicle Concluded!";
-                    userInputPlayerSide.disabled = true;
-                    userInputOpponentSide.disabled = true;
-                    submitTurnBtn.disabled = true;
-                    micBtnRpg.disabled = true;
-                    saveBtnRpg.disabled = false; // Allow saving chronicle at the end
-                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
-                    gameOverButtonsContainer.classList.remove('hidden'); // Show new game button
-                    return; // Exit early if game is over
-                }
-
-                // Normal game state (not game over)
-                gameOverButtonsContainer.classList.add('hidden'); // Hide new game button
-                switch (dynamicGameState.turnPhase) {
-                    case 'player_side_input':
-                        if (isSandboxOpenEnded) {
-                            turnStatus.textContent = `Your Turn: Describe Actions (Sandbox Mode)`;
-                            userInputPlayerSide.placeholder = `Describe your actions as ${dynamicGameState.playerSideName}...`;
-                            userInputOpponentSide.placeholder = `(Opponent input not needed in Sandbox)`;
-                        } else if (dynamicGameState.gameMode === 'sandbox_combat') {
-                            turnStatus.textContent = `Combat Round ${dynamicGameState.currentRound}: Describe Your Attack/Defense!`;
-                            userInputPlayerSide.placeholder = `Describe your combat actions...`;
-                            userInputOpponentSide.placeholder = `(AI will act for ${dynamicGameState.sandboxOpponentName})`; // Opponent input disabled
-                        } else { // competitive
-                            turnStatus.textContent = `It's Your Turn, ${dynamicGameState.playerSideName} & ${dynamicGameState.opponentSideName}!`;
-                            userInputPlayerSide.placeholder = `Describe ${dynamicGameState.playerSideName}'s actions...`;
-                            userInputOpponentSide.placeholder = `Describe ${dynamicGameState.opponentSideName}'s actions...`;
-                        }
-                        userInputPlayerSide.disabled = false;
-                        userInputOpponentSide.disabled = dynamicGameState.gameMode !== 'competitive'; // Only competitive allows opponent input
-                        submitTurnBtn.disabled = false;
-                        micBtnRpg.disabled = false;
-                        saveBtnRpg.disabled = false;
-                        userInputPlayerSide.focus();
-                        break;
-                    case 'adjudicating':
-                        turnStatus.textContent = "The Director is Adjudicating...";
-                        userInputPlayerSide.disabled = false; // Allow typing during narration
-                        userInputOpponentSide.disabled = true; // Always disable opponent input while adjudicating
-                        submitTurnBtn.disabled = true;
-                        micBtnRpg.disabled = true;
-                        saveBtnRpg.disabled = true;
-                        break;
-                }
-            }
+            // ui object declaration - moved here so it's accessible globally
+            let ui = {}; 
 
             // Function to dynamically build the creation UI and main game screen (log)
             function buildCreationAndGameUI() {
                 // Populate ui object with creation screen elements once they are active
+                ui.chatLog = document.getElementById('chat-log-rpg'); // chatLog is directly in genesisScreen
+                // Loader related elements
+                ui.loaderOverlay = document.getElementById('loading-overlay'); // Correctly assign to ui
+                ui.loaderText = document.getElementById('loader-text-rpg');   // Correctly assign to ui
+
+                // All creation screen elements - UNCOMMENTED
                 ui.prompt = document.getElementById('prompt-rpg');
                 ui.playerSideNameInput = document.getElementById('player-side-name-input');
                 ui.opponentSideNameInput = document.getElementById('opponent-side-name-input');
@@ -846,7 +767,7 @@
 
             // Attempts to unlock Web Audio API context on user interaction
             function unlockAudioContext() {
-                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
+                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
                 silentSound.volume = 0;
                 silentSound.play().catch(() => {});
                 console.log("[PANE GLASS] Audio context unlocked.");
@@ -910,8 +831,8 @@
 
             // Toggles the overall loading overlay and its text
             const setLoading = (isLoading, message = "Processing...") => {
-                loaderText.textContent = message;
-                loaderOverlay.classList.toggle('hidden', !isLoading);
+                if (ui.loaderText) ui.loaderText.textContent = message;
+                if (ui.loaderOverlay) ui.loaderOverlay.classList.toggle('hidden', !isLoading);
             };
 
             // This function is just a placeholder after visuals are removed
