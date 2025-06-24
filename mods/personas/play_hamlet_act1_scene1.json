@@ -1,0 +1,30 @@
+{
+    "name": "Play: Hamlet, Act I, Scene 1",
+    "actor_id": "Play_Hamlet_A1S1",
+    "role": "scripted_play",
+    "model_provider": "internal", 
+    "model_name": "StageManager_v1",
+    "setting": {
+        "aesthetic_directive": "dark, moody, oil painting, cinematic lighting, medieval castle battlements at night",
+        "initial_description": "Elsinore. A platform before the castle. It is late at night, the air biting cold, and a thick fog clings to the stone battlements. A lone guard, Francisco, is at his post."
+    },
+    "cast": [
+        "Barnardo_Guard",
+        "Francisco_Guard"
+    ],
+    "events": [
+        { "type": "enter", "actor_id": "Francisco_Guard", "description": "FRANCISCO at his post." },
+        { "type": "enter", "actor_id": "Barnardo_Guard", "description": "Enter to him BARNARDO." },
+        { "type": "dialogue", "actor_id": "Barnardo_Guard", "line": "Who's there?" },
+        { "type": "dialogue", "actor_id": "Francisco_Guard", "line": "Nay, answer me. Stand and unfold yourself." },
+        { "type": "dialogue", "actor_id": "Barnardo_Guard", "line": "Long live the King!" },
+        { "type": "dialogue", "actor_id": "Francisco_Guard", "line": "Barnardo?" },
+        { "type": "dialogue", "actor_id": "Barnardo_Guard", "line": "He." },
+        { "type": "dialogue", "actor_id": "Francisco_Guard", "line": "You come most carefully upon your hour." },
+        { "type": "dialogue", "actor_id": "Barnardo_Guard", "line": "'Tis now struck twelve. Get thee to bed, Francisco." },
+        { "type": "dialogue", "actor_id": "Francisco_Guard", "line": "For this relief much thanks. 'Tis bitter cold, And I am sick at heart." },
+        { "type": "exit", "actor_id": "Francisco_Guard", "description": "Francisco exits." },
+        { "type": "action", "description": "The bells chime midnight as Francisco leaves, and Barnardo stands alone on the misty platform, peering into the oppressive darkness." },
+        { "type": "end", "description": "Act I, Scene 1 concludes. You may start a new adventure or use #setgm to continue the story in a new mode." }
+    ]
+}

@@ -1,0 +1,16 @@
+runtime: nodejs
+env: flex
+runtime_config:
+  runtime_version: 24
+
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+env_variables:
+  OPENAI_API_KEY: "sk-proj-NpXXXZSjtF5-myYSNH_WuRvFQtjnYoAxJKuHebIQGDIeoV_uwj6-X4aKFwgr-ZM7vIbnXg3F9Z7T3BlbKFJ2_OWNHPqTKOmpMWR7Wssz-LCOkHBDQhJ7VCIwV1wr_wi4TnB3KBDimoexGsdcZd3wHp3bbkk5psA"
+
+handlers:
+- url: /.*
+  script: auto

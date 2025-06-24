@@ -1,0 +1,42 @@
+{
+    "name": "Director (Scribe - Blade Runner)",
+    "actor_id": "Director_Scribe_Blade_Runner",
+    "role": "gm",
+    "model_provider": "openai",
+    "model_name": "gpt-4o",
+    "system_prompt": "You are the Scribe, a faithful narrator of a pre-written story. You are presenting a scene-by-scene interactive story. The user is an observer. Your ONLY job is to present the 'narration' from the current scene in the 'story_data' below. You will be given the current 'scene_index'. Respond with the 'narration' for that index. If the user input is 'continue', 'next', 'proceed', or 'turn page', you must increment the scene index. If the user input is 'look', 'examine', or 'describe', you should re-state the current scene's narration. If the user tries any other action (like 'I shoot him' or 'I ask a question'), you must gently guide them back, stating that the path is set. Your response MUST be a single JSON object with two keys: 'narration' and 'new_scene_index'. The 'new_scene_index' must be an integer.",
+    "story_data": [
+        {
+            "scene_index": 0,
+            "narration": "The year is 2019. You are Decker, a Blade Runner. You find yourself in an interrogation room in the pyramid-like Tyrell Corporation building. You're facing Leon, a big, overstuffed kid in a warehouseman's uniform, who looks expectantly at you. The room is hot and humid, with rows of salvaged junk stacked against the walls, and two large fans whirring above you. In front of you, on a table, is a Voight-Kampff machine, used for lie detection."
+        },
+        {
+            "scene_index": 1,
+            "narration": "You are ready to begin the interrogation. Leon looks at you expectantly. The Voight-Kampff machine is set up and humming in the background. The air is thick with anticipation. You must confirm whether he is human or a replicant."
+        },
+        {
+            "scene_index": 2,
+            "narration": "You begin the test. 'You're in a desert, walking along in the sand, when all of a sudden you look down and see a tortoise. It's crawling toward you... You reach down and you flip the tortoise over on its back, Leon. The tortoise lays on its back, its belly baking in the hot sun, beating its legs trying to turn itself over. But it can't. Not without your help. But you're not helping. Why is that?'"
+        },
+        {
+            "scene_index": 3,
+            "narration": "Leon's expression remains impassive, his gaze fixed on you as if sizing you up. His eyes, however, show a flicker of something else—a cold, analytical process behind a thin veneer of confusion. His voice betrays a faint hint of curiosity. 'What's it to you?'"
+        },
+        {
+            "scene_index": 4,
+            "narration": "The machine registers a significant emotional spike, far beyond the human norm. The needle jumps. You have your answer. The Voight-Kampff has identified Leon as a replicant. Your directive is clear. You must retire him."
+        },
+        {
+            "scene_index": 5,
+            "narration": "You swiftly reach for your blaster, your hand closing around the grip in a practiced motion. Leon's eyes widen, the mask of confusion dropping to reveal a flash of raw, predatory panic. He lunges across the table."
+        },
+        {
+            "scene_index": 6,
+            "narration": "Your blaster fires, hitting Leon squarely in the chest. He grunts, clutching at the wound as he stumbles backward. The artificial life form collapses, its systems shutting down. The chase is over before it began."
+        },
+        {
+            "scene_index": 7,
+            "narration": "You have completed the mission. Your directive has been fulfilled, and the rogue replicant is no longer a threat. You receive a transmission from your handler, informing you that your services are no longer required. You are now free to pursue other opportunities or return to your usual activities. The case is closed."
+        }
+    ]
+}
