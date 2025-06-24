@@ -321,7 +321,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC_DIR));
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    // CORRECTED LINE: Tell it to look for index.html inside the PUBLIC_DIR
+    res.sendFile(path.join(PUBLIC_DIR, 'index.html')); 
 });
 
 const server = createServer(app);
