@@ -746,10 +746,10 @@
                 // Populate ui object with creation screen elements once they are active
                 ui.chatLog = document.getElementById('chat-log-rpg'); // chatLog is directly in genesisScreen
                 // Loader related elements
-                ui.loaderOverlay = document.getElementById('loading-overlay'); // Correctly assign to ui
-                ui.loaderText = document.getElementById('loader-text-rpg');   // Correctly assign to ui
+                ui.loaderOverlay = document.getElementById('loading-overlay'); // Correctly assigned to ui
+                ui.loaderText = document.getElementById('loader-text-rpg');   // Correctly assigned to ui
 
-                // All creation screen elements - UNCOMMENTED
+                // All creation screen elements - UNCOMMENTED AND CORRECTED
                 ui.prompt = document.getElementById('prompt-rpg');
                 ui.playerSideNameInput = document.getElementById('player-side-name-input');
                 ui.opponentSideNameInput = document.getElementById('opponent-side-name-input');
@@ -767,7 +767,7 @@
 
             // Attempts to unlock Web Audio API context on user interaction
             function unlockAudioContext() {
-                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
+                const silentSound = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY229tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLnNvdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKrIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwA//zQsRbAAADSAAAAASteIEACH5w/AARgAAAAIAAQZgAAAAA//zQsRRAAAAAYNaaQAAAAAA//zQsTUAABAIAAAAAAAAFwAAAAAZ4AAAAn8A//zQsVcAAANIAAAAAAABaYgAIMj1w/AARgAAAAIAAQZgAAAAA//zQsV0AAAAABhpjoAADDgAAAAA//zQsWkAAAAAIAAAAAAAAFwAAAAAn4AAAAn8A//zQsYQAAANIAAAAAAABoYgAINj1w/AARgAAAAIAAQZgAAAAA//zQsY0AAAAABprpAAAADAAA");
                 silentSound.volume = 0;
                 silentSound.play().catch(() => {});
                 console.log("[PANE GLASS] Audio context unlocked.");
@@ -831,6 +831,7 @@
 
             // Toggles the overall loading overlay and its text
             const setLoading = (isLoading, message = "Processing...") => {
+                // Use ui.loaderText and ui.loaderOverlay, which are now correctly assigned
                 if (ui.loaderText) ui.loaderText.textContent = message;
                 if (ui.loaderOverlay) ui.loaderOverlay.classList.toggle('hidden', !isLoading);
             };
@@ -1213,7 +1214,7 @@
                 genesisScreen.classList.remove('active');
                 competitiveInputOverlay.classList.add('hidden');
                 creationScreen.classList.add('hidden'); // Ensure creation screen is also hidden
-                creationScreen.classList.remove('active');
+                creationScreen.classList.remove('active'); // Remove active if present
 
                 // Show hub screen
                 hubScreen.classList.add('active');
@@ -1274,6 +1275,8 @@
                 // Attach event listener to the SANDBOX launch button (renamed)
                 launchSandboxBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
+                    // FIX: Remove 'hidden' before adding 'active'
+                    creationScreen.classList.remove('hidden'); 
                     creationScreen.classList.add('active');
                     
                     // Configure creation screen for sandbox
@@ -1298,6 +1301,8 @@
                 // Attach event listener to the COMPETITIVE launch button
                 launchCompetitiveBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
+                    // FIX: Remove 'hidden' before adding 'active'
+                    creationScreen.classList.remove('hidden');
                     creationScreen.classList.add('active');
 
                     // Configure creation screen for competitive
