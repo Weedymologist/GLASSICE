@@ -16,12 +16,20 @@ dotenv.config();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const PORT = process.env.PORT || 3001; // Your app listens on this port, Render maps it
 
-const DB_ROOT_PATH = process.env.DB_ROOT_PATH || __dirname;
+// --- IMPORTANT CHANGE HERE ---
+// Set the DB_ROOT_PATH to the persistent disk's mount path
+const DB_ROOT_PATH = process.env.DB_ROOT_PATH || '/var/data'; // Changed from __dirname to /var/data
+console.log(`[SERVER INFO] DB_ROOT_PATH: ${DB_ROOT_PATH}`);
 
 const DB_FILE = path.join(DB_ROOT_PATH, 'pane.db');
 const MODS_DIR = path.join(DB_ROOT_PATH, 'mods');
 const SAVES_DIR = path.join(DB_ROOT_PATH, 'saves');
 const TEMP_DIR = path.join(DB_ROOT_PATH, 'temp');
+
+console.log(`[SERVER INFO] DB_FILE path: ${DB_FILE}`);
+console.log(`[SERVER INFO] MODS_DIR path: ${MODS_DIR}`);
+console.log(`[SERVER INFO] SAVES_DIR path: ${SAVES_DIR}`);
+console.log(`[SERVER INFO] TEMP_DIR path: ${TEMP_DIR}`);
 
 const app = express();
 
@@ -77,7 +85,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             initialPromptForGM = `You are the Game Master for a competitive narrative duel between two sides: '${playerSideName}' and '${opponentSideName}'.
             The game setting is: "${gameSettingPrompt}".
             Player Side '${playerSideName}'s opening strategy/composition: "${initialPlayerSidePrompt}"
-            Opponent Side '${opponentSideName}'s opening strategy/composition: "${initialOpponentSidePrompt}"
+            Opponent Side '${opponentName}'s opening strategy/composition: "${initialOpponentSidePrompt}"
             Synthesize this information to introduce the scene, the initial positions/stakes for both sides, and set the stage for their first turn of actions.
             
             This is a duel of attrition. Each time a side is outmaneuvered, they lose standing. Your JSON response MUST include a 'winner' field with 'player_side', 'opponent_side', or 'draw' for each turn's adjudication, reflecting who gained the upper hand in this specific round. You are ${gmPersonaToUse.name}.`;
@@ -151,6 +159,7 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
     const tempPath = path.join(TEMP_DIR, `${Date.now()}_audio.webm`);
 
     try {
+        // Ensure the TEMP_DIR exists on the persistent disk
         await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
         await audioFile.mv(tempPath);
         console.log(`[SERVER] Audio saved temporarily to ${tempPath}.`);
@@ -357,6 +366,8 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
         const saveFileName = `GlassICE_Chronicle_${timestamp}.html`;
         const saveFilePath = path.join(SAVES_DIR, saveFileName);
 
+        // Ensure the SAVES_DIR exists on the persistent disk
+        await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
         await fs.writeFile(saveFilePath, htmlContent);
         console.log(`[SERVER] Chronicle saved to ${saveFilePath}.`);
 
@@ -380,6 +391,7 @@ app.get('*', (req, res) => {
 
 const server = createServer(app);
 
+// Use the determined DB_FILE path for the database connection
 const db = new Database(DB_FILE);
 
 // Updated schema: game_mode instead of is_single_player, plus sandbox_opponent_details
@@ -396,6 +408,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS scenes (
     sandbox_opponent_details TEXT -- Stores the dynamically generated opponent name for sandbox_combat
 )`);
 
+console.log("[SERVER] Database table schema check/creation complete.");
+
 
 let loadedPersonas = {};
 let loadedAesthetics = {};
@@ -403,7 +417,8 @@ let loadedAesthetics = {};
 async function loadMods() {
     try {
         const personaDir = path.join(MODS_DIR, 'personas');
-        await fs.mkdir(personaDir, { recursive: true });
+        // Ensure the MODS_DIR exists on the persistent disk
+        await fs.mkdir(personaDir, { recursive: true }).catch(console.error);
         const personaFiles = await fs.readdir(personaDir);
         for (const file of personaFiles) {
             if (path.extname(file) === '.json') {
@@ -424,8 +439,10 @@ async function loadMods() {
 
 async function loadAesthetics() {
     try {
-        const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
-        await fs.mkdir(aestheticDir, { recursive: true });
+        // Aesthetics are generally part of the code bundle, so they don't need to be on the persistent disk.
+        // But for consistency or if you ever wanted user-uploaded aesthetics, you'd adjust this.
+        const aestheticDir = path.join(__dirname, 'public', 'aesthetics'); 
+        await fs.mkdir(aestheticDir, { recursive: true }).catch(console.error);
         const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
         for (const dirent of aestheticDirs) {
             if (dirent.isDirectory()) {
@@ -701,10 +718,11 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
 
 async function startServer() {
     console.log("[SERVER] Starting server initialization...");
+    // Ensure all data directories are created on the persistent disk
     await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
     await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
-    await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error);
-    console.log("[SERVER] Directories ensured to exist.");
+    await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error); // Ensure personas subdir exists
+    console.log("[SERVER] Data directories ensured to exist on persistent disk.");
 
 
     // Initial default personas - ensure they are loaded first or provided
