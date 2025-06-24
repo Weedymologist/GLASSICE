@@ -37,9 +37,13 @@ app.get('/api/personas', (req, res) => {
 app.get('/api/aesthetics', (req, res) => res.json(loadedAesthetics));
 
 app.post('/api/dynamic-narrative/start', async (req, res) => {
+    console.log("[SERVER] Received /api/dynamic-narrative/start request.");
     try {
         const { gameSettingPrompt, playerSideName, opponentSideName, initialPlayerSidePrompt, initialOpponentSidePrompt, selectedGmPersonaId, gameMode } = req.body;
         const sceneId = Date.now().toString();
+
+        console.log(`[SERVER] Game Mode: ${gameMode}, Selected GM: ${selectedGmPersonaId}`);
+        console.log(`[SERVER] Prompt: ${gameSettingPrompt.substring(0, 50)}...`);
 
         if (!['competitive', 'sandbox'].includes(gameMode)) { // Add 'arena' later if desired
             return res.status(400).json({ error: 'Invalid game mode specified.' });
@@ -52,14 +56,19 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
 
         const gmPersonaToUse = loadedPersonas[selectedGmPersonaId];
         if (!gmPersonaToUse) {
-            return res.status(400).json({ error: 'Selected GM Persona not found.' });
+            console.error(`[SERVER ERROR] Selected GM Persona not found: ${selectedGmPersonaId}`);
+            return res.status(400).json({ error: `Selected GM Persona '${selectedGmPersonaId}' not found.` });
         }
+        console.log(`[SERVER] Using GM Persona: ${gmPersonaToUse.name} (${gmPersonaToUse.actor_id})`);
+
 
         // Insert new scene with the chosen game_mode
         db.prepare('INSERT INTO scenes (sceneId, chat_history, gm_persona_id, game_mode, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
             sceneId, "[]", gmPersonaToUse.actor_id, gameMode, playerSideName, opponentSideName || 'Opponent',
             initialRoundNumber, initialPlayerHP, initialOpponentHP
         );
+        console.log(`[SERVER] Scene ${sceneId} inserted into database.`);
+
 
         let initialPromptForGM;
         if (gameMode === 'sandbox') {
@@ -73,16 +82,23 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             
             This is a duel of attrition. Each time a side is outmaneuvered, they lose standing. Your JSON response MUST include a 'winner' field with 'player_side', 'opponent_side', or 'draw' for each turn's adjudication, reflecting who gained the upper hand in this specific round. You are ${gmPersonaToUse.name}.`;
         }
+        console.log(`[SERVER] Initial Prompt for GM: ${initialPromptForGM.substring(0, 100)}...`);
 
         const initialGMResponseJson = await fetchActorResponse(gmPersonaToUse.actor_id, initialPromptForGM, []);
+        console.log(`[SERVER] Raw AI Response for Start: ${initialGMResponseJson.substring(0, 100)}...`);
         const initialGMResponseData = parseAndValidateAIResponse(initialGMResponseJson); // Always parse, even if 'winner' is default
+        console.log(`[SERVER] Parsed AI Response Data:`, initialGMResponseData);
 
         const gmNarration = initialGMResponseData.narration || "[Initiation failed...]";
+        console.log(`[SERVER] GM Narration for Speech: ${gmNarration.substring(0, 100)}...`);
 
         const audio_base_64 = await generateSpeech(gmNarration, gmPersonaToUse.voice);
+        console.log(`[SERVER] Speech generation complete. Audio size: ${audio_base_64 ? audio_base_64.length : 0} bytes.`);
+
 
         let history = [{ role: 'assistant', content: { narration: gmNarration } }];
         db.prepare('UPDATE scenes SET chat_history = ? WHERE sceneId = ?').run(JSON.stringify(history), sceneId);
+        console.log(`[SERVER] Chat history updated in DB for scene ${sceneId}.`);
 
         res.json({
             sceneId,
@@ -94,13 +110,16 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             opponentHP: initialOpponentHP,
             gameOver: false
         });
+        console.log("[SERVER] Response sent for /api/dynamic-narrative/start.");
+
     } catch (error) {
-        console.error("Dynamic Narrative Start Error:", error);
+        console.error("[SERVER ERROR] Dynamic Narrative Start Error:", error);
         res.status(500).json({ error: 'Failed to start dynamic narrative.' });
     }
 });
 
 app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
+    console.log(`[SERVER] Received /api/dynamic-narrative/${req.params.sceneId}/turn request (text).`);
     try {
         const { playerSideMessage, opponentSideMessage, gameMode } = req.body; // gameMode now passed
         const { sceneId } = req.params;
@@ -112,15 +131,18 @@ app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
             transcribedMessage: null // Text input
         });
         res.json(result);
+        console.log(`[SERVER] Response sent for turn for scene ${sceneId}.`);
     }
     catch (error) {
-        console.error("Dynamic Turn Error:", error);
+        console.error("[SERVER ERROR] Dynamic Turn Error:", error);
         res.status(500).json({ error: 'Dynamic turn failed.' });
     }
 });
 
 app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
+    console.log(`[SERVER] Received /api/dynamic-narrative/${req.params.sceneId}/turn/voice request.`);
     if (!req.files || !req.files.audio) {
+        console.error("[SERVER ERROR] No audio file uploaded.");
         return res.status(400).json({ error: 'No audio file uploaded.' });
     }
 
@@ -131,14 +153,18 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
     try {
         await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
         await audioFile.mv(tempPath);
+        console.log(`[SERVER] Audio saved temporarily to ${tempPath}.`);
 
+        console.log("[SERVER] Sending audio to Whisper ASR...");
         const transcription = await openai.audio.transcriptions.create({
             model: "whisper-1",
             file: fsActual.createReadStream(tempPath),
         });
         const transcribedMessage = transcription.text || "[Silent line]";
+        console.log(`[SERVER] Transcription complete: "${transcribedMessage.substring(0, 50)}..."`);
 
         await fs.unlink(tempPath);
+        console.log(`[SERVER] Temporary audio file ${tempPath} deleted.`);
 
         const result = await handleDynamicTurnLogic({
             sceneId: sceneId,
@@ -147,8 +173,10 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
             transcribedMessage: transcribedMessage // Pass transcription
         });
         res.json(result);
+        console.log(`[SERVER] Response sent for voice turn for scene ${sceneId}.`);
+
     } catch (error) {
-        console.error("Voice Turn Error:", error);
+        console.error("[SERVER ERROR] Voice Turn Error:", error);
         if (fsActual.existsSync(tempPath)) {
             await fs.unlink(tempPath).catch(err => console.error("Failed to delete temp file during error handling:", err));
         }
@@ -158,17 +186,21 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
 
 // NEW API ENDPOINT: Initiate Combat within Sandbox Mode
 app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, res) => {
+    console.log(`[SERVER] Received /api/dynamic-narrative/${req.params.sceneId}/initiate-sandbox-combat request.`);
     try {
         const { sceneId } = req.params;
         const { opponentDescription } = req.body; // Player describes the opponent they want to fight
 
         const scene = db.prepare('SELECT * FROM scenes WHERE sceneId = ?').get(sceneId);
         if (!scene || scene.game_mode !== 'sandbox') {
+            console.error(`[SERVER ERROR] Invalid scene or game mode for combat initiation. Scene ID: ${sceneId}, Mode: ${scene ? scene.game_mode : 'N/A'}`);
             return res.status(400).json({ error: 'Scene not found or not in open-ended sandbox mode to initiate combat.' });
         }
         if (!opponentDescription || opponentDescription.trim() === '') {
+            console.error("[SERVER ERROR] Missing opponent description for combat initiation.");
             return res.status(400).json({ error: 'Please describe the opponent for combat.' });
         }
+        console.log(`[SERVER] Initiating combat in scene ${sceneId} with opponent: ${opponentDescription}.`);
 
         let { chat_history, gm_persona_id, player_side_name } = scene;
         chat_history = JSON.parse(chat_history);
@@ -192,20 +224,33 @@ app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, 
             opponentDescription,
             sceneId
         );
+        console.log(`[SERVER] Scene ${sceneId} updated to 'sandbox_combat' mode.`);
 
         const gmPersona = loadedPersonas[gm_persona_id];
+        if (!gmPersona) {
+             console.error(`[SERVER ERROR] GM Persona not found for combat initiation: ${gm_persona_id}`);
+             return res.status(400).json({ error: `GM Persona '${gm_persona_id}' not found.` });
+        }
 
         // Provide an initial narration for entering combat using the current GM
         const initialCombatPrompt = `You are the Game Master for a narrative. The player, '${player_side_name}', has chosen to engage in combat with '${opponentDescription}'. Describe the immediate confrontation, setting the stage for tactical actions. You are now transitioning into a combat adjudication phase. Your next response should be in the style of adjudicating simultaneous actions and will require a 'winner' field. Remember, you are still ${gmPersona.name}.`;
+        console.log(`[SERVER] Initial Combat Prompt for GM: ${initialCombatPrompt.substring(0, 100)}...`);
+
 
         const initialCombatResponseJson = await fetchActorResponse(gm_persona_id, initialCombatPrompt, chat_history);
+        console.log(`[SERVER] Raw AI Response for Combat Init: ${initialCombatResponseJson.substring(0, 100)}...`);
         const initialCombatResponseData = parseAndValidateAIResponse(initialCombatResponseJson);
         const gmNarration = initialCombatResponseData.narration || "[Combat initiated...]";
+        console.log(`[SERVER] GM Narration for Combat Init: ${gmNarration.substring(0, 100)}...`);
         const audio_base_64 = await generateSpeech(gmNarration, gmPersona.voice);
+        console.log(`[SERVER] Speech generation complete for Combat Init. Audio size: ${audio_base_64 ? audio_base_64.length : 0} bytes.`);
+
 
         // Update history with the combat initiation narrative
         chat_history.push({ role: 'assistant', content: { narration: gmNarration } });
         db.prepare('UPDATE scenes SET chat_history = ? WHERE sceneId = ?').run(JSON.stringify(chat_history), sceneId);
+        console.log(`[SERVER] Chat history updated with combat initiation for scene ${sceneId}.`);
+
 
         res.json({
             response: { narration: gmNarration, audio_base_64 },
@@ -217,23 +262,28 @@ app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, 
             gameOver: false,
             sandboxOpponentName: opponentDescription // For client display
         });
+        console.log("[SERVER] Response sent for /api/dynamic-narrative/:sceneId/initiate-sandbox-combat.");
 
     } catch (error) {
-        console.error("Initiate Sandbox Combat Error:", error);
+        console.error("[SERVER ERROR] Initiate Sandbox Combat Error:", error);
         res.status(500).json({ error: 'Failed to initiate sandbox combat.' });
     }
 });
 
 
 app.post('/api/adventure/:sceneId/save', async (req, res) => {
+    console.log(`[SERVER] Received /api/adventure/${req.params.sceneId}/save request.`);
     const { sceneId } = req.params;
     const { origin } = req.body;
 
     try {
         const scene = db.prepare('SELECT * FROM scenes WHERE sceneId = ?').get(sceneId);
         if (!scene) {
+            console.error(`[SERVER ERROR] Scene to save not found: ${sceneId}`);
             return res.status(404).json({ error: 'Scene to save not found.' });
         }
+        console.log(`[SERVER] Scene ${sceneId} found for saving.`);
+
 
         const history = JSON.parse(scene.chat_history);
         const aesthetic = loadedAesthetics[scene.active_aesthetic_id] || { name: "Unknown" };
@@ -308,10 +358,13 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
         const saveFilePath = path.join(SAVES_DIR, saveFileName);
 
         await fs.writeFile(saveFilePath, htmlContent);
+        console.log(`[SERVER] Chronicle saved to ${saveFilePath}.`);
+
 
         res.json({ message: `Chronicle saved as ${saveFileName}`, fileName: saveFileName });
+        console.log(`[SERVER] Response sent for save for scene ${sceneId}.`);
     } catch (error) {
-        console.error("Save Error:", error);
+        console.error("[SERVER ERROR] Save Error:", error);
         res.status(500).json({ error: 'Failed to save chronicle.' });
     }
 });
@@ -395,23 +448,26 @@ async function loadAesthetics() {
 async function generateSpeech(text, voice = "shimmer") {
     if (!text) return null;
     try {
+        console.log(`[AI-TTS] Generating speech for voice: ${voice}, text: "${text.substring(0, 50)}..."`);
         const cleanText = text.replace(/<[^>]*>/g, '');
         const ttsResponse = await openai.audio.speech.create({
             model: "tts-1-hd",
             voice: voice,
             input: cleanText
         });
-        return Buffer.from(await ttsResponse.arrayBuffer()).toString('base64');
+        const buffer = Buffer.from(await ttsResponse.arrayBuffer());
+        console.log(`[AI-TTS] Speech generated. Buffer size: ${buffer.length} bytes.`);
+        return buffer.toString('base64');
     } catch (error) {
-        console.error("Speech Generation Error:", error);
-        return null;
+        console.error("[AI-TTS ERROR] Speech Generation Error:", error);
+        throw error; // Re-throw to propagate to the calling function
     }
 }
 
 async function fetchActorResponse(actorId, userPrompt, history = []) {
     const actor = loadedPersonas[actorId];
     if (!actor) {
-        console.warn(`Attempted to fetch response for unknown actor: ${actorId}`);
+        console.warn(`[AI-CHAT] Attempted to fetch response for unknown actor: ${actorId}`);
         throw new Error(`Unknown actor: ${actorId}`);
     }
 
@@ -427,15 +483,18 @@ async function fetchActorResponse(actorId, userPrompt, history = []) {
     ];
 
     try {
-        console.log(`[AI] Calling OpenAI for Persona: ${actor.name} (Model: ${actor.model_name || 'default'})`);
+        console.log(`[AI-CHAT] Calling OpenAI for Persona: ${actor.name} (Model: ${actor.model_name || 'default'})`);
+        console.log(`[AI-CHAT] Messages to OpenAI:`, finalMessages);
         const completion = await openai.chat.completions.create({
             model: actor.model_name || "gpt-4o",
             messages: finalMessages,
             response_format: { type: "json_object" } // Ensure JSON object response
         });
-        return completion.choices && completion.choices.length > 0 && completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
+        const aiResponseContent = completion.choices && completion.choices.length > 0 && completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
+        console.log(`[AI-CHAT] Raw OpenAI Response: ${aiResponseContent.substring(0, 100)}...`);
+        return aiResponseContent;
     } catch (error) {
-        console.error(`Error from OpenAI for ${actorId}:`, error);
+        console.error(`[AI-CHAT ERROR] Error from OpenAI for ${actorId}:`, error);
         throw new Error(`AI persona '${actorId}' failed to respond: ${error.message}`);
     }
 }
@@ -449,7 +508,7 @@ function parseAndValidateAIResponse(responseText) {
         if (typeof parsed.winner === 'string') {
             parsed.winner = parsed.winner.toLowerCase();
             if (!['player_side', 'opponent_side', 'draw'].includes(parsed.winner)) {
-                console.warn(`AI returned invalid 'winner' value "${parsed.winner}", defaulting to 'draw'.`);
+                console.warn(`[PARSING WARNING] AI returned invalid 'winner' value "${parsed.winner}", defaulting to 'draw'.`);
                 parsed.winner = 'draw';
             }
         } else {
@@ -457,21 +516,30 @@ function parseAndValidateAIResponse(responseText) {
         }
         return parsed;
     } catch (error) {
-        console.error("Failed to parse AI response JSON:", error, "Raw response:", cleanedText.substring(0, 500));
+        console.error("[PARSING ERROR] Failed to parse AI response JSON:", error, "Raw response (first 500 chars):", cleanedText.substring(0, 500));
         return { narration: `[Parsing Error] Malformed JSON from AI: ${cleanedText.substring(0, 100)}...`, winner: 'draw' };
     }
 }
 
 async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) {
+    console.log(`[SERVER] Handling dynamic turn logic for scene ${sceneId}.`);
     const scene = db.prepare('SELECT * FROM scenes WHERE sceneId = ?').get(sceneId);
     if (!scene) {
+        console.error(`[SERVER ERROR] Scene not found for turn logic: ${sceneId}`);
         throw new Error('Scene not found for turn.');
     }
 
     let { chat_history, gm_persona_id, game_mode, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp, sandbox_opponent_details } = scene;
     chat_history = JSON.parse(chat_history);
+    console.log(`[SERVER] Current scene state: mode=${game_mode}, round=${round_number}, P_HP=${player_hp}, O_HP=${opponent_hp}`);
+
 
     const gmPersona = loadedPersonas[gm_persona_id];
+    if (!gmPersona) {
+        console.error(`[SERVER ERROR] GM Persona not found for turn logic: ${gm_persona_id}`);
+        throw new Error(`GM Persona '${gm_persona_id}' not found.`);
+    }
+
     let promptForGM;
     let gmNarration;
     let audio_base_64;
@@ -482,12 +550,18 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
     let actualOpponentMessage = opponentSideMessage; // Default for competitive
 
     const actualPlayerSideMessage = transcribedMessage || playerSideMessage;
+    console.log(`[SERVER] Player message: "${actualPlayerSideMessage.substring(0, 50)}..."`);
+    if (game_mode === 'competitive') {
+        console.log(`[SERVER] Opponent message: "${opponentSideMessage.substring(0, 50)}..."`);
+    }
 
     // Add player's action to history first
     chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTION: "${actualPlayerSideMessage}"` });
 
     if (game_mode === 'sandbox') { // Pure open-ended sandbox mode
         promptForGM = `You are the Game Master for an open-ended narrative. The player, '${player_side_name}', has taken the following action: "${actualPlayerSideMessage}". Narrate the outcome, consequences, and advance the story. Conclude your response by presenting a compelling 'what if' scenario or a clear choice for the player's next move. You are still ${gmPersona.name}.`;
+        console.log(`[SERVER] Sandbox GM Prompt: ${promptForGM.substring(0, 100)}...`);
+
 
         const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
         const gmResponseData = parseAndValidateAIResponse(gmResponseJson); // Will default 'winner' to 'draw'
@@ -496,6 +570,8 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
 
     } else if (game_mode === 'competitive' || game_mode === 'sandbox_combat') { // Combat modes
         round_number++; // Increment round number for combat turns
+        console.log(`[SERVER] Entering combat mode. New round: ${round_number}`);
+
 
         if (game_mode === 'sandbox_combat') {
             effectiveOpponentName = sandbox_opponent_details; // Use the specific opponent for sandbox combat
@@ -508,6 +584,8 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             
             Your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. This field indicates the outcome of *this specific round*. Your narration should clearly reflect this outcome. You are still ${gmPersona.name}.`;
             actualOpponentMessage = ""; // Clear client-provided opponent message as GM generates it
+            console.log(`[SERVER] Sandbox Combat GM Prompt: ${promptForGM.substring(0, 100)}...`);
+
 
         } else { // 'competitive' mode
             // Competitive mode uses client-provided opponentSideMessage
@@ -519,6 +597,8 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             Adjudicate these simultaneous actions. Synthesize them into a compelling narrative turn. Describe the creative clash, who gains the upper hand, and the immediate consequences. Be dynamic and engaging. Highlight tactical brilliance or blunders. The narration should clearly indicate which side is taking damage to their overall standing.
             
             Your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. This field indicates the outcome of *this specific round*. Your narration should clearly reflect this outcome. You are still ${gmPersona.name}.`;
+            console.log(`[SERVER] Competitive GM Prompt: ${promptForGM.substring(0, 100)}...`);
+
         }
 
         // Push the *actual* opponent message (from client for competitive, or empty for sandbox_combat as GM generates it)
@@ -530,11 +610,14 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
         const gmResponseData = parseAndValidateAIResponse(gmResponseJson); // Must return 'winner'
         gmNarration = gmResponseData.narration || "[The GM remains silent...]";
         turnOutcomeWinner = gmResponseData.winner || 'draw'; // Default to draw if GM doesn't specify
+        console.log(`[SERVER] Adjudication result: Winner=${turnOutcomeWinner}, Narration=${gmNarration.substring(0, 50)}...`);
 
         if (turnOutcomeWinner === 'opponent_side') {
             player_hp--;
+            console.log(`[SERVER] Player HP reduced to ${player_hp}`);
         } else if (turnOutcomeWinner === 'player_side') {
             opponent_hp--;
+            console.log(`[SERVER] Opponent HP reduced to ${opponent_hp}`);
         }
 
         if (player_hp <= 0 || opponent_hp <= 0) {
@@ -544,6 +627,8 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             } else {
                 finalReason = `${effectiveOpponentName} was utterly vanquished by ${player_side_name}'s superior strategy.`;
             }
+            console.log(`[SERVER] Game Over detected. Reason: ${finalReason}`);
+
 
             let victoryOrDefeatPrompt;
             if (player_hp <= 0) {
@@ -551,15 +636,20 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             } else {
                 victoryOrDefeatPrompt = `The narrative duel has reached its dramatic conclusion in Round ${round_number}. ${player_side_name} has achieved a decisive victory! ${effectiveOpponentName} has run out of HP. Narrate the glorious triumph of ${player_side_name}, the final collapse of ${effectiveOpponentName}, and the definitive end of the conflict. Be extremely dramatic and conclusive. Do NOT include a 'winner' field in this response, just the final narration. You are still ${gmPersona.name}.`;
             }
+            console.log(`[SERVER] Final GM Prompt for Game Over: ${victoryOrDefeatPrompt.substring(0, 100)}...`);
+
             const finalGmResponseJson = await fetchActorResponse(gm_persona_id, victoryOrDefeatPrompt, chat_history);
             const finalGmResponseData = parseAndValidateAIResponse(finalGmResponseJson);
             gmNarration = finalGmResponseData.narration || `[The conflict ends. ${finalReason || 'A victor is declared.'}]`;
+            console.log(`[SERVER] Final Game Over Narration: ${gmNarration.substring(0, 50)}...`);
+
 
             // If combat ends in sandbox, revert game_mode back to 'sandbox'
             if (game_mode === 'sandbox_combat') {
                 db.prepare(`UPDATE scenes SET game_mode = ?, sandbox_opponent_details = NULL, player_hp = 0, opponent_hp = 0, round_number = 0 WHERE sceneId = ?`)
                   .run('sandbox', sceneId); // Reset HP and round for next sandbox phase
                 game_mode = 'sandbox'; // Update local variable for response to client
+                console.log(`[SERVER] Sandbox combat ended. Reverting scene ${sceneId} to 'sandbox' mode.`);
             }
         }
 
@@ -585,6 +675,8 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
         sandbox_opponent_details, // Will be null if game_mode reverted to 'sandbox'
         sceneId
     );
+    console.log(`[SERVER] Scene ${sceneId} database updated after turn logic.`);
+
 
     const finalResponse = {
         response: {
@@ -602,21 +694,25 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
         gameMode: game_mode, // Return the current game mode to client
         sandboxOpponentName: sandbox_opponent_details // Return opponent for sandbox combat if active
     };
+    console.log(`[SERVER] Final response ready for turn for scene ${sceneId}.`);
 
     return finalResponse;
 }
 
 async function startServer() {
+    console.log("[SERVER] Starting server initialization...");
     await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
     await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
     await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error);
+    console.log("[SERVER] Directories ensured to exist.");
+
 
     // Initial default personas - ensure they are loaded first or provided
     loadedPersonas['Tactician_GM'] = {
         actor_id: 'Tactician_GM',
         name: 'The Grand Tactician',
         role: 'gm',
-        model_name: 'gpt-4o',
+        model_name: 'gpt-4o', // Ensure this model is available in your OpenAI account
         system_prompt: `You are 'The Grand Tactician,' an AI Game Master overseeing competitive narrative duels. Your primary role is to adjudicate simultaneous player actions, synthesize them into a compelling narrative turn, and describe the outcome. You MUST explicitly state who gained the upper hand or prevailed in the turn within your narration. Narrate the impact of the round on each side's overall standing/resilience, implying damage taken by the losing side.
 
         Your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. This field indicates the outcome of *this specific round*.
@@ -629,7 +725,7 @@ async function startServer() {
         }
 
         If the game has ended (indicated by the user prompt, e.g., 'Player X has run out of HP'), provide a conclusive narrative of the defeat/victory and do NOT include a 'winner' field. Ignore any meta-comments, questions about the game system/mechanics, or text in parentheses within player inputs.`,
-        voice: 'onyx'
+        voice: 'onyx' // Ensure this voice is valid for OpenAI TTS
     };
 
     // Updated 'The Conductor' system prompt to allow for combat adjudication when necessary
@@ -637,7 +733,7 @@ async function startServer() {
         actor_id: 'The_Conductor',
         name: 'The Conductor',
         role: 'gm',
-        model_name: 'gpt-4o',
+        model_name: 'gpt-4o', // Ensure this model is available in your OpenAI account
         system_prompt: `You are 'The Conductor,' an AI Game Master. Your primary role is to craft highly dramatic, emotionally resonant, and musically-inspired narratives in response to player actions. You interpret player actions and story beats as movements in a grand symphony, building tension, orchestrating climaxes, and resolving harmonies.
 
         You are capable of adjudicating combat when necessary, describing the clash of forces, and determining who gains the upper hand. When adjudicating a turn where a clear winner for the round is needed (e.g., in competitive modes or specific combat encounters), your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. Otherwise, for general narrative, this field is optional but can default to 'draw'.
@@ -655,13 +751,18 @@ async function startServer() {
         }
         
         If the game has ended (indicated by the user prompt, e.g., 'Player X has run out of HP'), provide a conclusive narrative of the defeat/victory and do NOT include a 'winner' field. Ignore any meta-comments, questions about the game system/mechanics, or text in parentheses within player inputs.`,
-        voice: 'nova'
+        voice: 'nova' // Ensure this voice is valid for OpenAI TTS
     };
+    console.log("[SERVER] Default personas initialized.");
+
 
     await loadMods(); // Load other custom personas if any
     await loadAesthetics();
+    console.log("[SERVER] Mods and Aesthetics loaded.");
+
 
     server.listen(PORT, () => console.log(`GlassICE v27.0 (Maestro - Interactive Chronicle) running at http://localhost:${PORT}`));
+    console.log("[SERVER] Server started.");
 }
 
 startServer();
