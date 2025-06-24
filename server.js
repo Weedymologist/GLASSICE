@@ -16,28 +16,20 @@ dotenv.config();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const PORT = process.env.PORT || 3001; // Your app listens on this port, Render maps it
 
-// --- START OF CHANGES FOR PERSISTENT STORAGE (Already done, just for context) ---
 const DB_ROOT_PATH = process.env.DB_ROOT_PATH || __dirname;
 
 const DB_FILE = path.join(DB_ROOT_PATH, 'pane.db');
 const MODS_DIR = path.join(DB_ROOT_PATH, 'mods');
 const SAVES_DIR = path.join(DB_ROOT_PATH, 'saves');
 const TEMP_DIR = path.join(DB_ROOT_PATH, 'temp');
-// --- END OF CHANGES FOR PERSISTENT STORAGE ---
 
 const app = express();
 
-// --- START OF NEW/REORDERED EXPRESS MIDDLEWARE ---
-// 1. Core Express Middleware: Order here matters.
-//    Process incoming request body (JSON) and file uploads first.
 app.use(express.json({ limit: '50mb' }));
 app.use(fileUpload());
-app.use(cors()); // CORS should also be quite early
+app.use(cors());
 
-// 2. API Routes: Your game's backend logic.
-//    These should come BEFORE serving static files or the catch-all,
-//    so API requests are handled directly.
-
+// API Routes
 app.get('/api/personas', (req, res) => {
     const selectablePersonas = Object.values(loadedPersonas).filter(p => p.role === 'gm');
     res.json(selectablePersonas);
@@ -48,7 +40,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
     try {
         const { gameSettingPrompt, playerSideName, opponentSideName, initialPlayerSidePrompt, initialOpponentSidePrompt, gmPersonaId } = req.body;
         const sceneId = Date.now().toString();
-        const isSinglePlayer = !opponentSideName.trim();
+        const isSinglePlayer = !opponentSideName || !opponentSideName.trim();
 
         const initialRoundNumber = 0;
         const initialPlayerHP = 3;
@@ -207,23 +199,23 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
             } else {
                 let author = 'Player';
                 let className = 'user';
+                let content = entry.content; // Use a mutable copy
 
-                if (typeof entry.content === 'string') {
-                    if (entry.content.startsWith('PLAYER ACTION:')) {
+                if (typeof content === 'string') {
+                    const playerPrefix = `${playerSideName.toUpperCase()} ACTION`; // covers ACTIONS: and ACTION:
+                    const opponentPrefix = `${opponentSideName.toUpperCase()} ACTIONS:`;
+
+                    if (content.startsWith(playerPrefix)) {
                         author = playerSideName;
                         className = 'player-side';
-                        entry.content = entry.content.replace('PLAYER ACTION: ', '');
-                    } else if (entry.content.startsWith(`${playerSideName.toUpperCase()} ACTION:`)) {
-                        author = playerSideName;
-                        className = 'player-side';
-                        entry.content = entry.content.replace(`${playerSideName.toUpperCase()} ACTION: `, '');
-                    } else if (entry.content.startsWith(`${opponentSideName.toUpperCase()} ACTION:`)) {
+                        content = content.substring(content.indexOf(':') + 1).trim().replace(/^"|"$/g, '');
+                    } else if (content.startsWith(opponentPrefix)) {
                         author = opponentSideName;
                         className = 'opponent-side';
-                        entry.content = entry.content.replace(`${opponentSideName.toUpperCase()} ACTION: `, '');
+                        content = content.substring(content.indexOf(':') + 1).trim().replace(/^"|"$/g, '');
                     }
                 }
-                htmlContent += `<div class="log-entry"><strong class="${className}">${author}:</strong> ${entry.content}</div>\n`;
+                htmlContent += `<div class="log-entry"><strong class="${className}">${author}:</strong> ${content}</div>\n`;
             }
         }
         htmlContent += `</body></html>`;
@@ -241,24 +233,16 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
     }
 });
 
-// --- NEW POSITION for express.static and the catch-all route ---
-// 3. Static File Serving: Serve files from the 'public' directory.
-//    This should come AFTER API routes, so API paths don't try to serve static files.
-const PUBLIC_DIR = path.join(__dirname, 'public'); // Moved this definition here for clarity in order
+
+const PUBLIC_DIR = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC_DIR));
 
-// 4. Catch-all Route: For any other GET requests not handled by API or static files,
-//    serve the index.html. This is crucial for single-page applications (SPAs)
-//    and ensures the root path (/) always returns your HTML.
 app.get('*', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
-// --- END OF NEW/REORDERED EXPRESS MIDDLEWARE ---
 
+const server = createServer(app);
 
-const server = createServer(app); // Moved this line here to ensure 'app' is fully configured
-
-// Initialize SQLite Database
 const db = new Database(DB_FILE);
 
 db.exec(`CREATE TABLE IF NOT EXISTS scenes (
@@ -273,11 +257,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS scenes (
     opponent_hp INTEGER DEFAULT 3
 )`);
 
-// Global caches for loaded data
 let loadedPersonas = {};
 let loadedAesthetics = {};
 
-// --- LOADERS ---
 async function loadMods() {
     try {
         const personaDir = path.join(MODS_DIR, 'personas');
@@ -302,10 +284,6 @@ async function loadMods() {
 
 async function loadAesthetics() {
     try {
-        // Note: this still refers to '__dirname/public/aesthetics' which is relative to the server.js
-        // If these files are supposed to be written to/modified on the persistent disk,
-        // they should use DB_ROOT_PATH for their base directory.
-        // For now, assuming they are static assets deployed with the code.
         const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
         await fs.mkdir(aestheticDir, { recursive: true });
         const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
@@ -326,9 +304,6 @@ async function loadAesthetics() {
         console.error('[PANE GLASS] Failed to load aesthetics:', error);
     }
 }
-
-// ... (Rest of fetchActorResponse, generateSpeech, parseAndValidateAIResponse functions)
-// (These are the same as before, just placed here for brevity)
 
 async function generateSpeech(text, voice = "shimmer") {
     if (!text) return null;
@@ -434,7 +409,7 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
         promptForGM = `You are the Game Master for a competitive narrative duel between two sides: '${player_side_name}' (Current HP: ${player_hp}) and '${opponent_side_name}' (Current HP: ${opponent_hp}).
         Current Round: ${round_number}.
         ${player_side_name}'s actions: "${actualPlayerSideMessage}"
-        ${opponent_side_name}'s actions: "${opponent_side_name}"
+        ${opponent_side_name}'s actions: "${opponentSideMessage}"
         
         Adjudicate these simultaneous actions. Synthesize them into a compelling narrative turn. Describe the creative clash, who gains the upper hand, and the immediate consequences. Be dynamic and engaging. Highlight tactical brilliance or blunders. The narrative should clearly indicate which side is taking damage to their overall standing.
         
@@ -507,8 +482,6 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
     return finalResponse;
 }
 
-
-// --- SERVER STARTUP ---
 async function startServer() {
     await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
     await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);

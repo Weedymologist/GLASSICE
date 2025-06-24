@@ -715,7 +715,9 @@
                     submitTurnBtn.disabled = true;
                     micBtnRpg.disabled = true;
                     saveBtnRpg.disabled = false; // Allow saving chronicle at the end
-                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
+                    if (!dynamicGameState.isSinglePlayer) {
+                        gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
+                    }
                     gameOverButtonsContainer.classList.remove('hidden'); // Show new game button
                     return; // Exit early if game is over
                 }
@@ -984,18 +986,19 @@
                         await addLog(`Game Over! ${data.finalReason || "The conflict reached a decisive end."}`, "System", "system-error");
                         // Inputs will be permanently disabled by updateInputState()
                     } else {
-                        dynamicGameState.turnPhase = 'player_side_input';
-                        let turnPrompt = `It's your turn, ${dynamicGameState.playerSideName}: describe your next actions.`;
-                        if (!dynamicGameState.isSinglePlayer) { // Competitive mode specific prompt
+                        // For single player, the GM's narration *is* the prompt. For competitive, we give a status update.
+                        if (!dynamicGameState.isSinglePlayer) {
+                            let turnPrompt;
                             if (data.turnOutcomeWinner === 'opponent_side') {
                                 turnPrompt = `${dynamicGameState.playerSideName} was outmaneuvered in Round ${dynamicGameState.currentRound}. You are at ${dynamicGameState.playerHP} HP! Describe your next actions.`;
                             } else if (data.turnOutcomeWinner === 'player_side') {
                                 turnPrompt = `Victory in Round ${dynamicGameState.currentRound}! ${dynamicGameState.opponentSideName} is at ${dynamicGameState.opponentHP} HP. Describe your next actions.`;
-                            } else {
+                            } else { // Draw or undefined
                                 turnPrompt = `Round ${dynamicGameState.currentRound} was a draw. Both sides are at ${dynamicGameState.playerHP} HP. Describe your next actions.`;
                             }
+                            await addLog(turnPrompt, "System", "system-info");
                         }
-                        await addLog(turnPrompt, "System", "system-info");
+                        dynamicGameState.turnPhase = 'player_side_input';
                     }
                     toggleCompetitiveInputOverlay(true); // Show inputs after everything is loaded, with correct state
                     updateInputState(); // Ensure UI reflects final state (disabled if game over)
@@ -1040,7 +1043,7 @@
                         body: JSON.stringify({
                             gameSettingPrompt: gameSettingPrompt,
                             playerSideName: dynamicGameState.playerSideName,
-                            opponentSideName: dynamicGameState.opponentSideName, // Pass opponent name even if empty
+                            opponentSideName: "", // Pass empty opponent name for single player
                             initialPlayerSidePrompt: initialPlayerSidePrompt,
                             initialOpponentSidePrompt: "", // Ensure empty for single player
                             gmPersonaId: dynamicGameState.gmPersonaId,
@@ -1062,9 +1065,7 @@
                         }, 1500); // 1.5 second delay before speech starts
                     });
                     await Promise.all([textDisplayPromise, audioPlayPromise]); // Wait for both text typing AND audio playback to finish
-                    
-                    await addLog(`It's your turn, ${dynamicGameState.playerSideName}: describe your next actions.`, "System", "system-info");
-                    
+                                        
                     toggleCompetitiveInputOverlay(true); // Show inputs
                     dynamicGameState.turnPhase = 'player_side_input';
                     updateInputState();
@@ -1085,7 +1086,7 @@
                 const gmId = "Tactician_GM"; // Fixed GM for competitive
 
                 if (!gameSettingPrompt || !playerSideName || !opponentSideName || !initialPlayerSidePrompt || !initialOpponentSidePrompt) {
-                    alert("Please provide the game setting, both sides' names, both sides' opening strategies.");
+                    alert("Please provide the game setting, both sides' names, and both sides' opening strategies.");
                     return;
                 }
 
@@ -1176,7 +1177,7 @@
                     playerSideName: 'Player',
                     opponentSideName: 'Opponent',
                     currentAudio: null,
-                    personas: [], // Personas will be reloaded or cached from initial fetch
+                    personas: dynamicGameState.personas, // Keep cached personas
                     turnPhase: 'player_side_input',
                     playerSideInputBuffer: '',
                     opponentSideInputBuffer: '',
@@ -1196,6 +1197,7 @@
                 genesisScreen.classList.remove('active');
                 competitiveInputOverlay.classList.add('hidden');
                 creationScreen.classList.add('hidden'); // Ensure creation screen is also hidden
+                creationScreen.classList.remove('active');
 
                 // Show hub screen
                 hubScreen.classList.add('active');
@@ -1210,8 +1212,7 @@
                 document.getElementById('initial-player-side-label').textContent = "Your Side's Opening Strategy & Composition:";
                 document.getElementById('selected-gm-display').textContent = "Loading Directors..."; // Reset GM display text
                 
-                // Re-fetch personas to ensure they are re-cached for a clean start if needed (optional, they are global)
-                initializeUIAndData(); // Re-runs data load and re-attaches hub listeners
+                initializeUIAndData();
             };
 
 
@@ -1222,10 +1223,7 @@
                 try {
                     const personasData = await fetchAPI('/api/personas');
                     dynamicGameState.personas = personasData; // Cache personas
-
-                    // Set up dynamic GM selection display on creation screen
-                    // This will be overridden by the specific launch buttons, but a default is good.
-                    ui.selectedGmDisplay.textContent = dynamicGameState.isSinglePlayer ? "The Conductor" : "The Grand Tactician";
+                    ui.selectedGmDisplay.textContent = "Awaiting Mode Selection...";
                 } catch (e) {
                     const startButton = document.getElementById('start-btn-rpg');
                     if (startButton) {
@@ -1238,31 +1236,27 @@
                 // Attach event listener to the SINGLE PLAYER launch button
                 launchSinglePlayerBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
-                    creationScreen.classList.remove('hidden'); // Make sure creation screen is visible
-                    creationScreen.classList.add('active'); // Make sure creation screen is active
+                    creationScreen.classList.add('active');
                     
                     // Configure creation screen for single player
                     document.getElementById('opponent-side-name-form-group').classList.add('hidden');
                     document.getElementById('initial-opponent-side-prompt-form-group').classList.add('hidden');
                     document.getElementById('initial-player-side-label').textContent = "Your Side's Opening Strategy & Composition:";
-                    document.getElementById('start-btn-rpg').removeEventListener('click', prepareCompetitiveChronicle); // Ensure no old listener
-                    document.getElementById('start-btn-rpg').addEventListener('click', prepareSinglePlayerChronicle);
-                    ui.selectedGmDisplay.textContent = "The Conductor"; // Display fixed GM
+                    document.getElementById('start-btn-rpg').onclick = prepareSinglePlayerChronicle; // Assign directly to prevent multiple listeners
+                    ui.selectedGmDisplay.textContent = "The Conductor";
                 });
 
                 // Attach event listener to the COMPETITIVE launch button
                 launchCompetitiveBtn.addEventListener('click', () => {
                     hubScreen.classList.remove('active');
-                    creationScreen.classList.remove('hidden'); // Make sure creation screen is visible
-                    creationScreen.classList.add('active'); // Make sure creation screen is active
+                    creationScreen.classList.add('active');
 
                     // Configure creation screen for competitive
                     document.getElementById('opponent-side-name-form-group').classList.remove('hidden');
                     document.getElementById('initial-opponent-side-prompt-form-group').classList.remove('hidden');
                     document.getElementById('initial-player-side-label').textContent = "Team Alpha's Opening Strategy & Composition:";
-                    document.getElementById('start-btn-rpg').removeEventListener('click', prepareSinglePlayerChronicle); // Ensure no old listener
-                    document.getElementById('start-btn-rpg').addEventListener('click', prepareCompetitiveChronicle);
-                    ui.selectedGmDisplay.textContent = "The Grand Tactician"; // Display fixed GM
+                    document.getElementById('start-btn-rpg').onclick = prepareCompetitiveChronicle; // Assign directly
+                    ui.selectedGmDisplay.textContent = "The Grand Tactician";
                 });
 
                 // STT: Mic button listeners
@@ -1277,7 +1271,6 @@
                 // Combined Submit Button Listener (for both textareas)
                 submitTurnBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    // Prevent submission if game is over
                     if (dynamicGameState.gameOver) {
                         addLog("The chronicle has concluded. Start a new game.", "System", "system-info");
                         return;
@@ -1286,7 +1279,7 @@
                     const playerMessage = userInputPlayerSide.value.trim();
                     const opponentMessage = userInputOpponentSide.value.trim();
 
-                    if (!playerMessage && (!dynamicGameState.isSinglePlayer && !opponentMessage)) {
+                    if (!playerMessage && (dynamicGameState.isSinglePlayer || (!dynamicGameState.isSinglePlayer && !opponentMessage))) {
                         alert("Please provide actions for at least your side.");
                         return;
                     }
@@ -1297,7 +1290,6 @@
 
                 // Click anywhere on screen to bring up input overlay
                 document.body.addEventListener('click', (e) => { 
-                    // Prevent showing input overlay if clicking on the overlay itself, or if game is over
                     if (competitiveInputOverlay.classList.contains('hidden') && dynamicGameState.currentSceneId && 
                         dynamicGameState.turnPhase === 'player_side_input' && !competitiveInputOverlay.contains(e.target) && !dynamicGameState.gameOver) {
                         toggleCompetitiveInputOverlay(true);
@@ -1324,7 +1316,6 @@
                         if (dynamicGameState.isListening) {
                             handleMicRelease();
                         } else {
-                            // Only toggle if not already game over.
                             if (!dynamicGameState.gameOver) {
                                 toggleCompetitiveInputOverlay(true);
                             }
