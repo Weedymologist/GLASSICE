@@ -1328,7 +1328,8 @@
                 if (!ui.gmSelector.value && gmPersonas.length > 0) { // If Conductor not found, pick first
                     ui.gmSelector.value = gmPersonas[0].actor_id;
                 }
-                ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "No Director Selected";
+                // CORRECTED LINE: Use dynamicGameState.personas.find()
+                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director Selected";
             }
 
 
@@ -1361,7 +1362,8 @@
                     
                     ui.gmSelectionGroup.classList.remove('hidden'); // Show GM selection for sandbox
                     ui.gmSelector.value = 'The_Conductor'; // Default for sandbox
-                    ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "The Conductor"; // Display initial selection
+                    // CORRECTED LINE: Use dynamicGameState.personas.find()
+                    ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "The Conductor"; // Display initial selection
                     
                     ui.modeTitle.textContent = "Sandbox Narrative Setup"; // Update title
                     ui.startBtn.onclick = prepareSandboxChronicle; // Assign directly to prevent multiple listeners
@@ -1397,8 +1399,9 @@
                 });
 
                 // GM Selector Change Listener
+                // CORRECTED LINE: Use dynamicGameState.personas.find()
                 ui.gmSelector.addEventListener('change', () => {
-                    ui.selectedGmDisplay.textContent = loadedPersonas[ui.gmSelector.value]?.name || "No Director Selected";
+                    ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director Selected";
                 });
 
                 // STT: Mic button listeners
