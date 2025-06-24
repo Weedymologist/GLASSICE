@@ -14,320 +14,45 @@ const fetch = require('node-fetch');  // node-fetch v2 is specified in package.j
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // Your app listens on this port, Render maps it
 
-// --- START OF CHANGES FOR PERSISTENT STORAGE ---
-// This variable will be set by Render (e.g., /var/data)
-// If not set (i.e., when running locally), it defaults to the current directory (__dirname)
+// --- START OF CHANGES FOR PERSISTENT STORAGE (Already done, just for context) ---
 const DB_ROOT_PATH = process.env.DB_ROOT_PATH || __dirname;
 
-// Define core directories, now potentially pointing to the persistent disk
 const DB_FILE = path.join(DB_ROOT_PATH, 'pane.db');
 const MODS_DIR = path.join(DB_ROOT_PATH, 'mods');
 const SAVES_DIR = path.join(DB_ROOT_PATH, 'saves');
 const TEMP_DIR = path.join(DB_ROOT_PATH, 'temp');
-// GENERATED_IMAGES_DIR removed (as visuals are removed)
 // --- END OF CHANGES FOR PERSISTENT STORAGE ---
 
 const app = express();
-// Your `index.html` is at the root and will be served automatically by Render.
-// If you had other static assets (like images, sound files) in a folder,
-// you would usually use `app.use(express.static(path.join(__dirname, 'public')));`
-// but for your current `index.html` structure, it's not strictly necessary for the frontend serving.
-app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased limit for larger data if needed
-app.use(fileUpload()); // Still needed for voice recording upload
 
-const server = createServer(app);
+// --- START OF NEW/REORDERED EXPRESS MIDDLEWARE ---
+// 1. Core Express Middleware: Order here matters.
+//    Process incoming request body (JSON) and file uploads first.
+app.use(express.json({ limit: '50mb' }));
+app.use(fileUpload());
+app.use(cors()); // CORS should also be quite early
 
-// Initialize SQLite Database
-// --- CHANGE: Use DB_FILE variable ---
-const db = new Database(DB_FILE);
-// --- END CHANGE ---
+// 2. API Routes: Your game's backend logic.
+//    These should come BEFORE serving static files or the catch-all,
+//    so API requests are handled directly.
 
-db.exec(`CREATE TABLE IF NOT EXISTS scenes (
-    sceneId TEXT PRIMARY KEY,
-    chat_history TEXT,
-    gm_persona_id TEXT,
-    is_single_player BOOLEAN DEFAULT 0,
-    player_side_name TEXT DEFAULT 'Player',
-    opponent_side_name TEXT DEFAULT 'Opponent',
-    round_number INTEGER DEFAULT 0,
-    player_hp INTEGER DEFAULT 3, -- NEW: Player Health Points (default 3)
-    opponent_hp INTEGER DEFAULT 3  -- NEW: Opponent Health Points (default 3)
-)`);
-
-// Global caches for loaded data
-let loadedPersonas = {};
-let loadedAesthetics = {}; // Kept for now, but not used by server logic
-
-// --- LOADERS ---
-async function loadMods() {
-    try {
-        // --- CHANGE: Use MODS_DIR variable ---
-        const personaDir = path.join(MODS_DIR, 'personas');
-        // --- END CHANGE ---
-        await fs.mkdir(personaDir, { recursive: true }); // Ensure directory exists
-        const personaFiles = await fs.readdir(personaDir);
-        for (const file of personaFiles) {
-            if (path.extname(file) === '.json') {
-                const filePath = path.join(personaDir, file);
-                const fileContent = await fs.readFile(filePath, 'utf-8');
-                const persona = JSON.parse(fileContent);
-                // Assign 'gm' role if not specified but name implies GM
-                if (!persona.role && (persona.name.toLowerCase().includes('director') || persona.name.toLowerCase().includes('game master'))) {
-                    persona.role = 'gm';
-                }
-                loadedPersonas[persona.actor_id] = persona;
-                console.log(`[PANE GLASS] Loaded Persona: ${persona.name}`);
-            }
-        }
-    } catch (error) {
-        console.error('[PANE GLASS] Failed to load mods:', error);
-    }
-}
-
-async function loadAesthetics() {
-    // Note: The /public/aesthetics path is relative to the *project root* on Render,
-    // not necessarily the persistent disk. However, your game currently doesn't use these
-    // server-side, so this path definition can remain as it is if aesthetic files
-    // are deployed directly with your code (and not dynamically written to).
-    // If you ever needed to write/modify aesthetics files dynamically, they'd need to go to DB_ROOT_PATH.
-    try {
-        const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
-        await fs.mkdir(aestheticDir, { recursive: true }); // Ensure directory exists
-        const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
-        for (const dirent of aestheticDirs) {
-            if (dirent.isDirectory()) {
-                const aestheticId = dirent.name;
-                const manifestPath = path.join(aestheticDir, aestheticId, 'aesthetic.json');
-                try {
-                    const fileContent = await fs.readFile(manifestPath, 'utf-8');
-                    loadedAesthetics[aestheticId] = JSON.parse(fileContent);
-                    console.log(`[PANE GLASS] Loaded Aesthetic: ${loadedAesthetics[aestheticId].name}`);
-                } catch (e) {
-                    console.error(`[PANE GLASS] Failed to load aesthetic for ${aestheticId}:`, e.message);
-                }
-            }
-        }
-    } catch (error) {
-        console.error('[PANE GLASS] Failed to load aesthetics:', error);
-    }
-}
-
-// --- SHARED HELPER FUNCTIONS ---
-// MODIFIED parseAndValidateAIResponse to expect 'winner' field
-function parseAndValidateAIResponse(responseText) {
-    const cleanedText = responseText.replace(/```json\n?|\n?```/g, '').trim();
-    try {
-        const parsed = JSON.parse(cleanedText);
-        // Validate and normalize 'winner' field if present
-        if (typeof parsed.winner === 'string') {
-            parsed.winner = parsed.winner.toLowerCase();
-            if (!['player_side', 'opponent_side', 'draw'].includes(parsed.winner)) {
-                console.warn(`AI returned invalid 'winner' value "${parsed.winner}", defaulting to 'draw'.`);
-                parsed.winner = 'draw';
-            }
-        }
-        return parsed;
-    } catch (error) {
-        console.error("Failed to parse AI response JSON:", error, "Raw response:", cleanedText.substring(0, 500));
-        return { narration: `[Parsing Error] Malformed JSON from AI: ${cleanedText.substring(0, 100)}...`, winner: 'draw' }; // Default winner to 'draw' on parse error
-    }
-}
-
-async function generateSpeech(text, voice = "shimmer") {
-    if (!text) return null;
-    try {
-        const cleanText = text.replace(/<[^>]*>/g, '');
-        const ttsResponse = await openai.audio.speech.create({
-            model: "tts-1-hd",
-            voice: voice,
-            input: cleanText
-        });
-        return Buffer.from(await ttsResponse.arrayBuffer()).toString('base64');
-    } catch (error) {
-        console.error("Speech Generation Error:", error);
-        return null;
-    }
-}
-
-async function fetchActorResponse(actorId, userPrompt, history = []) {
-    const actor = loadedPersonas[actorId];
-    if (!actor) {
-        console.warn(`Attempted to fetch response for unknown actor: ${actorId}`);
-        throw new Error(`Unknown actor: ${actorId}`);
-    }
-
-    const messages = history.slice(-8).map(msg => ({ // Limit history for context
-        role: msg.role,
-        content: (typeof msg.content === 'object' && msg.content !== null && 'narration' in msg.content) ? msg.content.narration : msg.content
-    }));
-
-    const finalMessages = [
-        { role: "system", content: actor.system_prompt },
-        ...messages,
-        { role: "user", content: userPrompt }
-    ];
-
-    try {
-        console.log(`[AI] Calling OpenAI for Persona: ${actor.name} (Model: ${actor.model_name || 'default'})`);
-        const completion = await openai.chat.completions.create({
-            model: actor.model_name || "gpt-4o",
-            messages: finalMessages,
-            response_format: { type: "json_object" }
-        });
-        return completion.choices && completion.choices.length > 0 && completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
-    } catch (error) {
-        console.error(`Error from OpenAI for ${actorId}:`, error);
-        throw new Error(`AI persona '${actorId}' failed to respond: ${error.message}`);
-    }
-}
-
-// --- DYNAMIC NARRATIVE (MAESTRO) LOGIC ---
-
-// Handles the logic for a single turn (either single player or competitive)
-async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) {
-    const scene = db.prepare('SELECT * FROM scenes WHERE sceneId = ?').get(sceneId);
-    if (!scene) {
-        throw new Error('Scene not found for turn.');
-    }
-
-    let { chat_history, gm_persona_id, is_single_player, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp } = scene;
-    chat_history = JSON.parse(chat_history);
-    
-    // Ensure opponent_side_name is not null/empty for competitive mode logic
-    opponent_side_name = opponent_side_name || 'Opponent';
-
-    let promptForGM;
-    let gmNarration;
-    let audio_base_64;
-    let gameOver = false;
-    let finalReason = null;
-    let turnOutcomeWinner = null; // Stores 'player_side', 'opponent_side', or 'draw' for this turn
-
-    // Use transcribedMessage if present, otherwise playerSideMessage
-    const actualPlayerSideMessage = transcribedMessage || playerSideMessage;
-
-    if (is_single_player === 1) { // Single Player Mode
-        chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTION: "${actualPlayerSideMessage}"` });
-        // MODIFIED: Instruct GM to pose a "what if" or choice for single player
-        promptForGM = `You are the Game Master for a single-player narrative. The player, '${player_side_name}', has taken the following action: "${actualPlayerSideMessage}". Narrate the outcome, consequences, and advance the story for a single player experience. Conclude your response by presenting a compelling 'what if' scenario or a clear choice for the player's next move. Ensure the narrative flows seamlessly from previous events without referring to a non-existent opponent.`;
-
-        const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
-        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
-        gmNarration = gmResponseData.narration || "[The GM remains silent...]";
-        audio_base_64 = await generateSpeech(gmNarration, loadedPersonas[gm_persona_id]?.voice);
-
-    } else { // Competitive Mode
-        round_number++; // Increment round number for competitive play
-
-        chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTIONS: "${actualPlayerSideMessage}"` });
-        chat_history.push({ role: 'user', content: `${opponent_side_name.toUpperCase()} ACTIONS: "${opponentSideMessage}"` });
-        
-        // Base prompt for competitive turn adjudication
-        promptForGM = `You are the Game Master for a competitive narrative duel between two sides: '${player_side_name}' (Current HP: ${player_hp}) and '${opponent_side_name}' (Current HP: ${opponent_hp}).
-        Current Round: ${round_number}.
-        ${player_side_name}'s actions: "${actualPlayerSideMessage}"
-        ${opponent_side_name}'s actions: "${opponent_side_name}"
-        
-        Adjudicate these simultaneous actions. Synthesize them into a compelling narrative turn. Describe the creative clash, who gains the upper hand, and the immediate consequences. Be dynamic and engaging. Highlight tactical brilliance or blunders. The narrative should clearly indicate which side is taking damage to their overall standing.
-        
-        Your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. This field indicates the outcome of *this specific round*. Your narration should clearly reflect this outcome.`;
-
-        const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
-        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
-        gmNarration = gmResponseData.narration || "[The GM remains silent...]";
-        turnOutcomeWinner = gmResponseData.winner || 'draw'; // Get the winner of this turn
-
-        // Update HP based on turn outcome
-        if (turnOutcomeWinner === 'opponent_side') { // Player lost this turn
-            player_hp--;
-        } else if (turnOutcomeWinner === 'player_side') { // Player won this turn
-            opponent_hp--;
-        }
-        // If draw, HP remains unchanged
-
-        // Check for game over conditions
-        if (player_hp <= 0) {
-            gameOver = true;
-            finalReason = `${player_side_name} ran out of resilience after a fierce struggle against ${opponent_side_name}.`;
-        } else if (opponent_hp <= 0) {
-            gameOver = true;
-            finalReason = `${opponent_side_name} was utterly vanquished by ${player_side_name}'s superior strategy.`;
-        }
-
-        if (gameOver) {
-            let victoryOrDefeatPrompt;
-            if (player_hp <= 0) {
-                // Player lost
-                victoryOrDefeatPrompt = `The narrative duel has reached its dramatic conclusion in Round ${round_number}. The player, '${player_side_name}', has suffered a decisive defeat. They have run out of HP against '${opponent_side_name}'. Narrate their final, conclusive defeat, the unraveling of their strategy, and the definitive end of their journey in this conflict. Be extremely dramatic and conclusive. Do NOT include a 'winner' field in this response, just the final narration.`;
-            } else {
-                // Player won
-                victoryOrDefeatPrompt = `The narrative duel has reached its dramatic conclusion in Round ${round_number}. The player, '${player_side_name}', has achieved a decisive victory! '${opponent_side_name}' has run out of HP. Narrate the glorious triumph of ${player_side_name}, the final collapse of ${opponent_side_name}, and the definitive end of the conflict. Be extremely dramatic and conclusive. Do NOT include a 'winner' field in this response, just the final narration.`;
-            }
-            const finalGmResponseJson = await fetchActorResponse(gm_persona_id, victoryOrDefeatPrompt, chat_history);
-            const finalGmResponseData = parseAndValidateAIResponse(finalGmResponseJson);
-            gmNarration = finalGmResponseData.narration || `[The conflict ends. ${finalReason || 'A victor is declared.'}]`;
-        }
-        
-        audio_base_64 = await generateSpeech(gmNarration, loadedPersonas[gm_persona_id]?.voice);
-    }
-
-    // Always push the GM's narration (whether it's turn adjudication or game over)
-    chat_history.push({ role: 'assistant', content: { narration: gmNarration } });
-
-    // Update scene in database
-    db.prepare(`UPDATE scenes SET 
-        chat_history = ?, 
-        round_number = ?, 
-        player_hp = ?,
-        opponent_hp = ?
-        WHERE sceneId = ?`).run(
-        JSON.stringify(chat_history), 
-        round_number, 
-        player_hp,
-        opponent_hp,
-        sceneId
-    );
-
-    const finalResponse = {
-        response: {
-            narration: gmNarration,
-            audio_base_64: audio_base_64,
-        },
-        character: gm_persona_id,
-        transcribedMessage: transcribedMessage,
-        currentRound: round_number, // Pass current round
-        playerHP: player_hp, // Pass player's current HP
-        opponentHP: opponent_hp, // Pass opponent's current HP
-        gameOver: gameOver, // Pass game over status
-        finalReason: finalReason, // Pass reason for game over (who won/lost overall)
-        turnOutcomeWinner: turnOutcomeWinner // Indicate who won the *last turn* (useful for client messages)
-    };
-
-    return finalResponse;
-}
-
-
-// --- HTTP API ENDPOINTS ---
 app.get('/api/personas', (req, res) => {
     const selectablePersonas = Object.values(loadedPersonas).filter(p => p.role === 'gm');
     res.json(selectablePersonas);
 });
 app.get('/api/aesthetics', (req, res) => res.json(loadedAesthetics));
 
-// NEW: Start dynamic narrative adventure (handles both single player and competitive initialization)
 app.post('/api/dynamic-narrative/start', async (req, res) => {
     try {
         const { gameSettingPrompt, playerSideName, opponentSideName, initialPlayerSidePrompt, initialOpponentSidePrompt, gmPersonaId } = req.body;
         const sceneId = Date.now().toString();
         const isSinglePlayer = !opponentSideName.trim();
 
-        // Initialize competitive specific columns
         const initialRoundNumber = 0;
-        const initialPlayerHP = 3; // Starting HP for player
-        const initialOpponentHP = 3; // Starting HP for opponent
+        const initialPlayerHP = 3;
+        const initialOpponentHP = 3;
 
         db.prepare('INSERT INTO scenes (sceneId, chat_history, gm_persona_id, is_single_player, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
             sceneId, "[]", gmPersonaId, isSinglePlayer ? 1 : 0, playerSideName, opponentSideName || 'Opponent', 
@@ -344,7 +69,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             Opponent Side '${opponentSideName}'s opening strategy/composition: "${initialOpponentSidePrompt}"
             Synthesize this information to introduce the scene, the initial positions/stakes for both sides, and set the stage for their first turn of actions.
             
-            This is a duel of attrition. Each time a side is outmaneuvered, they lose standing. Your JSON response MUST include a 'winner' field with 'player_side', 'opponent_side', or 'draw' for each turn's adjudication, reflecting who gained the upper hand in this specific round.`; // Added context for attrition/standing
+            This is a duel of attrition. Each time a side is outmaneuvered, they lose standing. Your JSON response MUST include a 'winner' field with 'player_side', 'opponent_side', or 'draw' for each turn's adjudication, reflecting who gained the upper hand in this specific round.`;
         }
         
         const initialGMResponseJson = await fetchActorResponse(gmPersonaId, initialPromptForGM, []);
@@ -373,13 +98,11 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
     }
 });
 
-// Handles subsequent turns for both single player and competitive modes
 app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
     try {
-        const { playerSideMessage, opponentSideMessage, isSinglePlayer } = req.body; // isSinglePlayer is client-side confirmation, actual state pulled from DB
+        const { playerSideMessage, opponentSideMessage, isSinglePlayer } = req.body;
         const { sceneId } = req.params;
 
-        // handleDynamicTurnLogic already fetches scene data including is_single_player
         const result = await handleDynamicTurnLogic({
             sceneId: sceneId,
             playerSideMessage,
@@ -394,7 +117,6 @@ app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
     }
 });
 
-// NEW: Handle voice input for dynamic turns
 app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
     if (!req.files || !req.files.audio) {
         return res.status(400).json({ error: 'No audio file uploaded.' });
@@ -402,14 +124,10 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
 
     const { sceneId } = req.params;
     const audioFile = req.files.audio;
-    // --- CHANGE: Use TEMP_DIR variable ---
     const tempPath = path.join(TEMP_DIR, `${Date.now()}_audio.webm`);
-    // --- END CHANGE ---
 
     try {
-        // --- CHANGE: Use TEMP_DIR variable ---
-        await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error); // Ensure temp dir exists
-        // --- END CHANGE ---
+        await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
         await audioFile.mv(tempPath);
 
         const transcription = await openai.audio.transcriptions.create({
@@ -420,12 +138,11 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
 
         await fs.unlink(tempPath);
 
-        // handleDynamicTurnLogic already fetches scene data including is_single_player
         const result = await handleDynamicTurnLogic({
             sceneId: sceneId,
-            playerSideMessage: transcribedMessage, // Pass transcribed message as playerSideMessage
-            opponentSideMessage: '', // Voice input typically only for player
-            transcribedMessage: transcribedMessage // Store for logging on client if needed
+            playerSideMessage: transcribedMessage,
+            opponentSideMessage: '',
+            transcribedMessage: transcribedMessage
         });
         res.json(result);
     } catch (error) {
@@ -437,8 +154,6 @@ app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
     }
 });
 
-
-// Save endpoint for chronicles (adapted for dynamic narrative)
 app.post('/api/adventure/:sceneId/save', async (req, res) => {
     const { sceneId } = req.params;
     const { origin } = req.body;
@@ -450,17 +165,14 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
         }
 
         const history = JSON.parse(scene.chat_history);
-        // Note: active_aesthetic_id is not stored in your new scene schema, it's removed.
-        // I'll leave the aesthetic loading logic for now as it's harmless, but it will always show "Unknown"
-        // unless you re-add `active_aesthetic_id` to your `scenes` table and populate it.
         const aesthetic = loadedAesthetics[scene.active_aesthetic_id] || { name: "Unknown" }; 
         const gm = loadedPersonas[scene.gm_persona_id] || { name: "Unknown Director" };
         const isSinglePlayer = scene.is_single_player === 1;
         const playerSideName = scene.player_side_name || 'Player';
         const opponentSideName = scene.opponent_side_name || 'Opponent';
         const roundNumber = scene.round_number || 0; 
-        const playerHP = scene.player_hp || 0; // Capture current HP
-        const opponentHP = scene.opponent_hp || 0; // Capture current HP
+        const playerHP = scene.player_hp || 0;
+        const opponentHP = scene.opponent_hp || 0;
 
 
         let htmlContent = `<!DOCTYPE html>
@@ -497,7 +209,7 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
                 let className = 'user';
 
                 if (typeof entry.content === 'string') {
-                    if (entry.content.startsWith('PLAYER ACTION:')) { // Legacy check
+                    if (entry.content.startsWith('PLAYER ACTION:')) {
                         author = playerSideName;
                         className = 'player-side';
                         entry.content = entry.content.replace('PLAYER ACTION: ', '');
@@ -517,10 +229,8 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
         htmlContent += `</body></html>`;
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        // --- CHANGE: Use SAVES_DIR variable ---
         const saveFileName = `GlassICE_Chronicle_${timestamp}.html`;
         const saveFilePath = path.join(SAVES_DIR, saveFileName);
-        // --- END CHANGE ---
         
         await fs.writeFile(saveFilePath, htmlContent);
 
@@ -531,16 +241,279 @@ app.post('/api/adventure/:sceneId/save', async (req, res) => {
     }
 });
 
+// --- NEW POSITION for express.static and the catch-all route ---
+// 3. Static File Serving: Serve files from the 'public' directory.
+//    This should come AFTER API routes, so API paths don't try to serve static files.
+const PUBLIC_DIR = path.join(__dirname, 'public'); // Moved this definition here for clarity in order
+app.use(express.static(PUBLIC_DIR));
+
+// 4. Catch-all Route: For any other GET requests not handled by API or static files,
+//    serve the index.html. This is crucial for single-page applications (SPAs)
+//    and ensures the root path (/) always returns your HTML.
+app.get('*', (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+});
+// --- END OF NEW/REORDERED EXPRESS MIDDLEWARE ---
+
+
+const server = createServer(app); // Moved this line here to ensure 'app' is fully configured
+
+// Initialize SQLite Database
+const db = new Database(DB_FILE);
+
+db.exec(`CREATE TABLE IF NOT EXISTS scenes (
+    sceneId TEXT PRIMARY KEY,
+    chat_history TEXT,
+    gm_persona_id TEXT,
+    is_single_player BOOLEAN DEFAULT 0,
+    player_side_name TEXT DEFAULT 'Player',
+    opponent_side_name TEXT DEFAULT 'Opponent',
+    round_number INTEGER DEFAULT 0,
+    player_hp INTEGER DEFAULT 3,
+    opponent_hp INTEGER DEFAULT 3
+)`);
+
+// Global caches for loaded data
+let loadedPersonas = {};
+let loadedAesthetics = {};
+
+// --- LOADERS ---
+async function loadMods() {
+    try {
+        const personaDir = path.join(MODS_DIR, 'personas');
+        await fs.mkdir(personaDir, { recursive: true });
+        const personaFiles = await fs.readdir(personaDir);
+        for (const file of personaFiles) {
+            if (path.extname(file) === '.json') {
+                const filePath = path.join(personaDir, file);
+                const fileContent = await fs.readFile(filePath, 'utf-8');
+                const persona = JSON.parse(fileContent);
+                if (!persona.role && (persona.name.toLowerCase().includes('director') || persona.name.toLowerCase().includes('game master'))) {
+                    persona.role = 'gm';
+                }
+                loadedPersonas[persona.actor_id] = persona;
+                console.log(`[PANE GLASS] Loaded Persona: ${persona.name}`);
+            }
+        }
+    } catch (error) {
+        console.error('[PANE GLASS] Failed to load mods:', error);
+    }
+}
+
+async function loadAesthetics() {
+    try {
+        // Note: this still refers to '__dirname/public/aesthetics' which is relative to the server.js
+        // If these files are supposed to be written to/modified on the persistent disk,
+        // they should use DB_ROOT_PATH for their base directory.
+        // For now, assuming they are static assets deployed with the code.
+        const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
+        await fs.mkdir(aestheticDir, { recursive: true });
+        const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
+        for (const dirent of aestheticDirs) {
+            if (dirent.isDirectory()) {
+                const aestheticId = dirent.name;
+                const manifestPath = path.join(aestheticDir, aestheticId, 'aesthetic.json');
+                try {
+                    const fileContent = await fs.readFile(manifestPath, 'utf-8');
+                    loadedAesthetics[aestheticId] = JSON.parse(fileContent);
+                    console.log(`[PANE GLASS] Loaded Aesthetic: ${loadedAesthetics[aestheticId].name}`);
+                } catch (e) {
+                    console.error(`[PANE GLASS] Failed to load aesthetic for ${aestheticId}:`, e.message);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[PANE GLASS] Failed to load aesthetics:', error);
+    }
+}
+
+// ... (Rest of fetchActorResponse, generateSpeech, parseAndValidateAIResponse functions)
+// (These are the same as before, just placed here for brevity)
+
+async function generateSpeech(text, voice = "shimmer") {
+    if (!text) return null;
+    try {
+        const cleanText = text.replace(/<[^>]*>/g, '');
+        const ttsResponse = await openai.audio.speech.create({
+            model: "tts-1-hd",
+            voice: voice,
+            input: cleanText
+        });
+        return Buffer.from(await ttsResponse.arrayBuffer()).toString('base64');
+    } catch (error) {
+        console.error("Speech Generation Error:", error);
+        return null;
+    }
+}
+
+async function fetchActorResponse(actorId, userPrompt, history = []) {
+    const actor = loadedPersonas[actorId];
+    if (!actor) {
+        console.warn(`Attempted to fetch response for unknown actor: ${actorId}`);
+        throw new Error(`Unknown actor: ${actorId}`);
+    }
+
+    const messages = history.slice(-8).map(msg => ({
+        role: msg.role,
+        content: (typeof msg.content === 'object' && msg.content !== null && 'narration' in msg.content) ? msg.content.narration : msg.content
+    }));
+
+    const finalMessages = [
+        { role: "system", content: actor.system_prompt },
+        ...messages,
+        { role: "user", content: userPrompt }
+    ];
+
+    try {
+        console.log(`[AI] Calling OpenAI for Persona: ${actor.name} (Model: ${actor.model_name || 'default'})`);
+        const completion = await openai.chat.completions.create({
+            model: actor.model_name || "gpt-4o",
+            messages: finalMessages,
+            response_format: { type: "json_object" }
+        });
+        return completion.choices && completion.choices.length > 0 && completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
+    } catch (error) {
+        console.error(`Error from OpenAI for ${actorId}:`, error);
+        throw new Error(`AI persona '${actorId}' failed to respond: ${error.message}`);
+    }
+}
+
+function parseAndValidateAIResponse(responseText) {
+    const cleanedText = responseText.replace(/```json\n?|\n?```/g, '').trim();
+    try {
+        const parsed = JSON.parse(cleanedText);
+        if (typeof parsed.winner === 'string') {
+            parsed.winner = parsed.winner.toLowerCase();
+            if (!['player_side', 'opponent_side', 'draw'].includes(parsed.winner)) {
+                console.warn(`AI returned invalid 'winner' value "${parsed.winner}", defaulting to 'draw'.`);
+                parsed.winner = 'draw';
+            }
+        }
+        return parsed;
+    } catch (error) {
+        console.error("Failed to parse AI response JSON:", error, "Raw response:", cleanedText.substring(0, 500));
+        return { narration: `[Parsing Error] Malformed JSON from AI: ${cleanedText.substring(0, 100)}...`, winner: 'draw' };
+    }
+}
+
+async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) {
+    const scene = db.prepare('SELECT * FROM scenes WHERE sceneId = ?').get(sceneId);
+    if (!scene) {
+        throw new Error('Scene not found for turn.');
+    }
+
+    let { chat_history, gm_persona_id, is_single_player, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp } = scene;
+    chat_history = JSON.parse(chat_history);
+    
+    opponent_side_name = opponent_side_name || 'Opponent';
+
+    let promptForGM;
+    let gmNarration;
+    let audio_base_64;
+    let gameOver = false;
+    let finalReason = null;
+    let turnOutcomeWinner = null;
+
+    const actualPlayerSideMessage = transcribedMessage || playerSideMessage;
+
+    if (is_single_player === 1) {
+        chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTION: "${actualPlayerSideMessage}"` });
+        promptForGM = `You are the Game Master for a single-player narrative. The player, '${player_side_name}', has taken the following action: "${actualPlayerSideMessage}". Narrate the outcome, consequences, and advance the story for a single player experience. Conclude your response by presenting a compelling 'what if' scenario or a clear choice for the player's next move. Ensure the narrative flows seamlessly from previous events without referring to a non-existent opponent.`;
+
+        const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
+        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
+        gmNarration = gmResponseData.narration || "[The GM remains silent...]";
+        audio_base_64 = await generateSpeech(gmNarration, loadedPersonas[gm_persona_id]?.voice);
+
+    } else {
+        round_number++;
+
+        chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTIONS: "${actualPlayerSideMessage}"` });
+        chat_history.push({ role: 'user', content: `${opponent_side_name.toUpperCase()} ACTIONS: "${opponentSideMessage}"` });
+        
+        promptForGM = `You are the Game Master for a competitive narrative duel between two sides: '${player_side_name}' (Current HP: ${player_hp}) and '${opponent_side_name}' (Current HP: ${opponent_hp}).
+        Current Round: ${round_number}.
+        ${player_side_name}'s actions: "${actualPlayerSideMessage}"
+        ${opponent_side_name}'s actions: "${opponent_side_name}"
+        
+        Adjudicate these simultaneous actions. Synthesize them into a compelling narrative turn. Describe the creative clash, who gains the upper hand, and the immediate consequences. Be dynamic and engaging. Highlight tactical brilliance or blunders. The narrative should clearly indicate which side is taking damage to their overall standing.
+        
+        Your JSON response MUST include a 'winner' field with one of these values: 'player_side', 'opponent_side', or 'draw'. This field indicates the outcome of *this specific round*. Your narration should clearly reflect this outcome.`;
+
+        const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
+        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
+        gmNarration = gmResponseData.narration || "[The GM remains silent...]";
+        turnOutcomeWinner = gmResponseData.winner || 'draw';
+
+        if (turnOutcomeWinner === 'opponent_side') {
+            player_hp--;
+        } else if (turnOutcomeWinner === 'player_side') {
+            opponent_hp--;
+        }
+
+        if (player_hp <= 0) {
+            gameOver = true;
+            finalReason = `${player_side_name} ran out of resilience after a fierce struggle against ${opponent_side_name}.`;
+        } else if (opponent_hp <= 0) {
+            gameOver = true;
+            finalReason = `${opponent_side_name} was utterly vanquished by ${player_side_name}'s superior strategy.`;
+        }
+
+        if (gameOver) {
+            let victoryOrDefeatPrompt;
+            if (player_hp <= 0) {
+                victoryOrDefeatPrompt = `The narrative duel has reached its dramatic conclusion in Round ${round_number}. The player, '${player_side_name}', has suffered a decisive defeat. They have run out of HP against '${opponent_side_name}'. Narrate their final, conclusive defeat, the unraveling of their strategy, and the definitive end of their journey in this conflict. Be extremely dramatic and conclusive. Do NOT include a 'winner' field in this response, just the final narration.`;
+            } else {
+                victoryOrDefeatPrompt = `The narrative duel has reached its dramatic conclusion in Round ${round_number}. The player, '${player_side_name}', has achieved a decisive victory! '${opponent_side_name}' has run out of HP. Narrate the glorious triumph of ${player_side_name}, the final collapse of ${opponent_side_name}, and the definitive end of the conflict. Be extremely dramatic and conclusive. Do NOT include a 'winner' field in this response, just the final narration.`;
+            }
+            const finalGmResponseJson = await fetchActorResponse(gm_persona_id, victoryOrDefeatPrompt, chat_history);
+            const finalGmResponseData = parseAndValidateAIResponse(finalGmResponseJson);
+            gmNarration = finalGmResponseData.narration || `[The conflict ends. ${finalReason || 'A victor is declared.'}]`;
+        }
+        
+        audio_base_64 = await generateSpeech(gmNarration, loadedPersonas[gm_persona_id]?.voice);
+    }
+
+    chat_history.push({ role: 'assistant', content: { narration: gmNarration } });
+
+    db.prepare(`UPDATE scenes SET 
+        chat_history = ?, 
+        round_number = ?, 
+        player_hp = ?,
+        opponent_hp = ?
+        WHERE sceneId = ?`).run(
+        JSON.stringify(chat_history), 
+        round_number, 
+        player_hp,
+        opponent_hp,
+        sceneId
+    );
+
+    const finalResponse = {
+        response: {
+            narration: gmNarration,
+            audio_base_64: audio_base_64,
+        },
+        character: gm_persona_id,
+        transcribedMessage: transcribedMessage,
+        currentRound: round_number,
+        playerHP: player_hp,
+        opponentHP: opponent_hp,
+        gameOver: gameOver,
+        finalReason: finalReason,
+        turnOutcomeWinner: turnOutcomeWinner
+    };
+
+    return finalResponse;
+}
+
 
 // --- SERVER STARTUP ---
 async function startServer() {
-    // --- CHANGE: Ensure all persistent directories are created using the new variables ---
     await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
     await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
-    await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error); // Ensure mods/personas sub-dir exists
-    // --- END CHANGE ---
+    await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error);
 
-    // Define core GM persona (selectable by user) - Simplified system_prompt for dynamic prompt construction
     loadedPersonas['Tactician_GM'] = {
         actor_id: 'Tactician_GM',
         name: 'The Grand Tactician',
@@ -561,23 +534,19 @@ If the game has ended (indicated by the user prompt, e.g., 'Player X has run out
         voice: 'onyx'
     };
 
-    // NEW: Define The Conductor GM
     loadedPersonas['The_Conductor'] = {
         actor_id: 'The_Conductor',
         name: 'The Conductor',
         role: 'gm',
         model_name: 'gpt-4o',
         system_prompt: `You are 'The Conductor,' an AI Game Master specializing in crafting highly dramatic, emotionally resonant, and musically-inspired narratives. You interpret player actions and story beats as movements in a grand symphony, building tension, orchestrating climaxes, and resolving harmonies. Respond with poetic flair and a focus on atmospheric storytelling. You will receive precise instructions for each turn based on the game mode and player input. Respond only with JSON containing 'narration' and 'shot_description'. Ignore any meta-comments, questions about the game system/mechanics, or text in parentheses within player inputs.`,
-        voice: 'nova' // Nova voice requested
+        voice: 'nova'
     };
 
+    await loadMods();
+    await loadAesthetics();
 
-    await loadMods(); // Load user-defined personas (including any custom GMs/NPCs)
-    await loadAesthetics(); // Aesthetics are still loaded but not used by server logic
-
-    // Start the HTTP server
     server.listen(PORT, () => console.log(`GlassICE v27.0 (Maestro - Interactive Chronicle) running at http://localhost:${PORT}`));
 }
 
-// Execute server startup function
 startServer();
