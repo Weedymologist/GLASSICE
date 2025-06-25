@@ -270,8 +270,6 @@
                 }
             }
             
-            function buildCreationAndGameUI() { /* This can stay as-is for element selection */ }
-
             const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); ui.chatLog.scrollTop = ui.chatLog.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
             const playAudio = (b64) => new Promise(resolve => { if (dynamicGameState.currentAudio) { dynamicGameState.currentAudio.pause(); } if (b64) { dynamicGameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); dynamicGameState.currentAudio.play().catch(e => resolve()); dynamicGameState.currentAudio.onended = () => resolve(); } else { resolve(); } });
             const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLog.appendChild(entryDiv); return typewriter(contentSpan, content || ''); };
@@ -331,13 +329,23 @@
             const prepareSandboxChronicle = async () => {
                 const directorCanInitiateCombat = document.getElementById('director-conflict-checkbox').checked;
                 const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox', directorCanInitiateCombat };
-                if (!body.gameSettingPrompt || !body.playerSideName || !body.initialPlayerSidePrompt) { alert("Please complete all required fields."); return; }
+                if (!body.gameSettingPrompt || !body.playerSideName || !body.initialPlayerSidePrompt || !body.selectedGmPersonaId) { alert("Please complete all required fields and select a Director."); return; }
                 dynamicGameState.playerSideName = body.playerSideName;
                 startChronicle(body);
             };
 
             const prepareCompetitiveChronicle = async () => {
-                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), opponentSideName: ui.opponentSideNameInput.value.trim(), initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), selectedGmPersonaId: 'Tactician_GM', gameMode: 'competitive' };
+                // *** THE FIX IS HERE ***
+                const body = { 
+                    gameSettingPrompt: ui.prompt.value.trim(), 
+                    playerSideName: ui.playerSideNameInput.value.trim(), 
+                    opponentSideName: ui.opponentSideNameInput.value.trim(), 
+                    initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), 
+                    initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), 
+                    selectedGmPersonaId: 'Tactician_GM', 
+                    gameMode: 'competitive',
+                    directorCanInitiateCombat: true // This line was missing
+                };
                 if (!body.gameSettingPrompt || !body.playerSideName || !body.opponentSideName || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) { alert("Please complete all required fields."); return; }
                 dynamicGameState.playerSideName = body.playerSideName; dynamicGameState.opponentSideName = body.opponentSideName;
                 startChronicle(body);
@@ -387,8 +395,24 @@
                 dynamicGameState.turnPhase = 'player_side_input'; toggleCompetitiveInputOverlay(true); addLog("Your turn. What do you do next?", "System", "system-info");
             };
             
-            const startNewGame = () => { /* ... unchanged ... */ };
-            async function populateGmSelector() { /* ... unchanged ... */ }
+            const startNewGame = () => {
+                dynamicGameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: dynamicGameState.personas, turnPhase: 'player_side_input', playerSideInputBuffer: '', opponentSideInputBuffer: '', gameMode: 'sandbox', isListening: false, gmPersonaId: null, currentRound: 0, playerHP: 0, opponentHP: 0, gameOver: false, sandboxOpponentName: null };
+                ui.chatLog.innerHTML = '';
+                genesisScreen.classList.remove('active'); competitiveInputOverlay.classList.add('hidden'); creationScreen.classList.remove('active'); creationScreen.classList.add('hidden'); hubScreen.classList.add('active');
+                userInputPlayerSide.value = ''; userInputOpponentSide.value = ''; sandboxOpponentDescriptionInput.value = '';
+                ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Dynamic Narrative Setup";
+                populateGmSelector();
+            };
+
+            async function populateGmSelector() {
+                ui.gmSelector.innerHTML = '';
+                const gmPersonas = dynamicGameState.personas.filter(p => p.role === 'gm');
+                if (gmPersonas.length === 0) { ui.selectedGmDisplay.textContent = "ERROR: NO DIRECTORS FOUND"; return; }
+                gmPersonas.forEach(persona => { const option = document.createElement('option'); option.value = persona.actor_id; option.textContent = persona.name; ui.gmSelector.appendChild(option); });
+                const conductorExists = gmPersonas.some(p => p.actor_id === 'The_Conductor');
+                if (conductorExists) { ui.gmSelector.value = 'The_Conductor'; } else if (gmPersonas.length > 0) { ui.gmSelector.value = gmPersonas[0].actor_id; }
+                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director Selected";
+            }
             
             async function initializeUIAndData() {
                 ui = { chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
@@ -405,9 +429,22 @@
                 micBtnRpg.addEventListener('mousedown', handleMicPress); micBtnRpg.addEventListener('mouseup', handleMicRelease);
                 saveStateBtn.addEventListener('click', saveGameState);
                 newGameBtn.addEventListener('click', startNewGame);
-                initiateCombatBtn.addEventListener('click', async () => { /* ... unchanged ... */ });
-                submitTurnBtn.addEventListener('click', (e) => { e.preventDefault(); if (dynamicGameState.gameOver) return; const playerMessage = userInputPlayerSide.value.trim(); const opponentMessage = userInputOpponentSide.value.trim(); if (!playerMessage || (dynamicGameState.gameMode === 'competitive' && !opponentMessage)) { alert("Please describe actions for all required sides."); return; } processTurnInput({ message: playerMessage }); });
+                
+                initiateCombatBtn.addEventListener('click', async () => {
+                    if (!sandboxOpponentDescriptionInput.value.trim()) { alert("Please describe who/what you want to fight."); return; }
+                    setLoading(true, `Preparing for combat...`);
+                    try {
+                        const data = await fetchAPI(`/api/dynamic-narrative/${dynamicGameState.currentSceneId}/initiate-sandbox-combat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ opponentDescription: sandboxOpponentDescriptionInput.value.trim() }) });
+                        dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound; dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                        setLoading(false);
+                        const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                        const audioPlayPromise = new Promise(resolve => setTimeout(async () => { await playAudio(data.response.audio_base_64); resolve(); }, 1500));
+                        await Promise.all([textDisplayPromise, audioPlayPromise]);
+                        toggleCompetitiveInputOverlay(true); dynamicGameState.turnPhase = 'player_side_input'; updateInputState(); sandboxOpponentDescriptionInput.value = '';
+                    } catch (e) { setLoading(false); }
+                });
 
+                submitTurnBtn.addEventListener('click', (e) => { e.preventDefault(); if (dynamicGameState.gameOver) return; const playerMessage = userInputPlayerSide.value.trim(); const opponentMessage = userInputOpponentSide.value.trim(); if (!playerMessage || (dynamicGameState.gameMode === 'competitive' && !opponentMessage)) { alert("Please describe actions for all required sides."); return; } processTurnInput({ message: playerMessage }); });
                 document.addEventListener('keydown', (e) => { if (genesisScreen.classList.contains('active') && e.code === 'Space' && !isHoldingSpace && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT' && dynamicGameState.turnPhase === 'player_side_input' && !dynamicGameState.gameOver && dynamicGameState.gameMode !== 'competitive') { e.preventDefault(); isHoldingSpace = true; spacebarTimer = setTimeout(() => { handleMicPress(); toggleCompetitiveInputOverlay(false); }, 250); } });
                 document.addEventListener('keyup', (e) => { if (genesisScreen.classList.contains('active') && e.code === 'Space' && isHoldingSpace) { clearTimeout(spacebarTimer); if (dynamicGameState.isListening) { handleMicRelease(); } else if (!dynamicGameState.gameOver) { toggleCompetitiveInputOverlay(true); } isHoldingSpace = false; } });
                 document.addEventListener('keydown', (e) => { if (e.code === 'Escape' && !competitiveInputOverlay.classList.contains('hidden') && dynamicGameState.turnPhase !== 'adjudicating' && !dynamicGameState.gameOver) { toggleCompetitiveInputOverlay(false); } });
