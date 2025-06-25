@@ -1,4 +1,4 @@
-// P.A.N.E. GLASS - v27.0 ("Maestro") - Interactive Chronicle Engine (ICE)
+// P.A.N.E. GLASS - v27.0 ("Maestro") - Interactive Chronicle Engine (ICE) - VISUAL INTEGRATION
 const express = require('express');
 const cors = require('cors');
 const { createServer } = require('http');
@@ -106,7 +106,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
 
         let initialPromptForGM;
         if (gameMode === 'sandbox') {
-            initialPromptForGM = `You are the Game Master for an open-ended narrative experience. The game setting is: "${gameSettingPrompt}". The player, '${playerSideName}', has presented this opening strategy/composition: "${initialPlayerSidePrompt}". Synthesize this information to introduce the scene, the player's initial status, and set the stage. Conclude by presenting a compelling 'what if' scenario or a clear choice for the player's first move. You are ${gmPersonaToUse.name}. Your JSON response must contain a "narration" field.`;
+            initialPromptForGM = `You are the Game Master for an open-ended narrative experience. The game setting is: "${gameSettingPrompt}". The player, '${playerSideName}', has presented this opening strategy/composition: "${initialPlayerSidePrompt}". Synthesize this information to introduce the scene, the player's initial status, and set the stage. Conclude by presenting a compelling 'what if' scenario or a clear choice for the player's first move. You are ${gmPersonaToUse.name}. Your JSON response must contain a "narration" field and a "shot_description" field for a background image.`;
             if (directorCanInitiateCombat) {
                  initialPromptForGM += `\nIMPORTANT RULE: You are allowed to initiate combat if the player's actions lead to a dangerous situation. To do so, your JSON response MUST include \`"initiate_combat": true\`, a description of the opponent in \`"opponent_description"\`, and their starting health in \`"opponent_hp"\`.`;
             } else {
@@ -119,7 +119,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             Opponent Side '${opponentSideName}'s opening strategy/composition: "${initialOpponentSidePrompt}"
             Synthesize this information to introduce the scene, the initial positions/stakes for both sides, and set the stage for their first turn of actions.
             
-            This is a duel of attrition. Your JSON response MUST include \`"damage_to_player"\` and \`"damage_to_opponent"\` fields with numerical values, reflecting who gained the upper hand in this specific round. Your response also needs a "narration" field. You are ${gmPersonaToUse.name}.`;
+            This is a duel of attrition. Your JSON response MUST include \`"damage_to_player"\` and \`"damage_to_opponent"\` fields with numerical values, reflecting who gained the upper hand in this specific round. Your response also needs a "narration" field and a "shot_description" field. You are ${gmPersonaToUse.name}.`;
         }
         console.log(`[SERVER] Initial Prompt for GM: ${initialPromptForGM.substring(0, 100)}...`);
 
@@ -131,8 +131,12 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
         const gmNarration = initialGMResponseData.narration || initialGMResponseData.scene_description || "[Initiation failed...]";
         console.log(`[SERVER] GM Narration for Speech: ${gmNarration.substring(0, 100)}...`);
 
-        const audio_base_64 = await generateSpeech(gmNarration, gmPersonaToUse.voice);
-        console.log(`[SERVER] Speech generation complete. Audio size: ${audio_base_64 ? audio_base_64.length : 0} bytes.`);
+        // --- NEW: Generate image and audio in parallel ---
+        const [audio_base_64, image_b64] = await Promise.all([
+            generateSpeech(gmNarration, gmPersonaToUse.voice),
+            generateImage(initialGMResponseData.shot_description)
+        ]);
+        console.log(`[SERVER] Speech & Image generation complete.`);
 
 
         let history = [{ role: 'assistant', content: { narration: gmNarration } }];
@@ -141,7 +145,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
 
         res.json({
             sceneId,
-            response: { narration: gmNarration, audio_base_64 },
+            response: { narration: gmNarration, audio_base_64, image_b64 }, // Added image_b64
             character: gmPersonaToUse.actor_id,
             gameMode: gameMode,
             currentRound: initialRoundNumber,
@@ -254,19 +258,23 @@ app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, 
              return res.status(400).json({ error: `GM Persona '${gm_persona_id}' not found.` });
         }
 
-        const initialCombatPrompt = `You are the Game Master. The player, '${player_side_name}', has chosen to engage in combat with '${opponentDescription}'. Describe the immediate confrontation, setting the stage for tactical actions. Your next response should be in the style of adjudicating simultaneous actions and will require \`"damage_to_player"\` and \`"damage_to_opponent"\` fields, and a "narration" field. Remember, you are still ${gmPersona.name}.`;
+        const initialCombatPrompt = `You are the Game Master. The player, '${player_side_name}', has chosen to engage in combat with '${opponentDescription}'. Describe the immediate confrontation, setting the stage for tactical actions. Your next response should be in the style of adjudicating simultaneous actions and will require \`"damage_to_player"\` and \`"damage_to_opponent"\` fields, a "narration" field, and a "shot_description" field. Remember, you are still ${gmPersona.name}.`;
         console.log(`[SERVER] Initial Combat Prompt for GM: ${initialCombatPrompt.substring(0, 100)}...`);
 
         const initialCombatResponseJson = await fetchActorResponse(gm_persona_id, initialCombatPrompt, chat_history);
         const initialCombatResponseData = parseAndValidateAIResponse(initialCombatResponseJson);
         const gmNarration = initialCombatResponseData.narration || "[Combat initiated...]";
-        const audio_base_64 = await generateSpeech(gmNarration, gmPersona.voice);
+        
+        const [audio_base_64, image_b64] = await Promise.all([
+            generateSpeech(gmNarration, gmPersona.voice),
+            generateImage(initialCombatResponseData.shot_description)
+        ]);
 
         chat_history.push({ role: 'assistant', content: { narration: gmNarration } });
         db.prepare('UPDATE scenes SET chat_history = ? WHERE sceneId = ?').run(JSON.stringify(chat_history), sceneId);
 
         res.json({
-            response: { narration: gmNarration, audio_base_64 },
+            response: { narration: gmNarration, audio_base_64, image_b64 },
             character: gm_persona_id,
             gameMode: 'sandbox_combat',
             currentRound: 0,
@@ -373,9 +381,32 @@ async function generateSpeech(text, voice = "shimmer") {
         return buffer.toString('base64');
     } catch (error) {
         console.error("[AI-TTS ERROR] Speech Generation Error:", error);
-        throw error;
+        return null; // Return null instead of throwing to not break the turn
     }
 }
+// --- NEW FUNCTION TO GENERATE IMAGES ---
+async function generateImage(shotDescription) {
+    if (!shotDescription) {
+        console.log("[AI-IMAGE] No shot description provided, skipping image generation.");
+        return null;
+    }
+    try {
+        console.log(`[AI-IMAGE] Generating image for: "${shotDescription.substring(0, 60)}..."`);
+        const response = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: `digital painting, cinematic lighting, high detail, evocative: ${shotDescription}`,
+            n: 1,
+            size: "1024x1024",
+            response_format: "b64_json",
+        });
+        console.log("[AI-IMAGE] DALL-E image generation successful.");
+        return response.data[0].b64_json;
+    } catch (error) {
+        console.error("[AI-IMAGE ERROR] DALL-E Image Generation Error:", error);
+        return null; // Return null on error so the game can continue
+    }
+}
+
 async function fetchActorResponse(actorId, userPrompt, history = []) {
     const actor = loadedPersonas[actorId];
     if (!actor) { throw new Error(`Unknown actor: ${actorId}`); }
@@ -413,19 +444,20 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
     const gmPersona = loadedPersonas[gm_persona_id];
     if (!gmPersona) { throw new Error(`GM Persona '${gm_persona_id}' not found.`); }
 
-    let promptForGM, gmNarration, audio_base_64, gameOver = false, finalReason = null, damageDealtToPlayer = 0, damageDealtToOpponent = 0;
+    let promptForGM, gmNarration, gameOver = false, finalReason = null, damageDealtToPlayer = 0, damageDealtToOpponent = 0;
     let effectiveOpponentName = opponent_side_name, actualOpponentMessage = opponentSideMessage;
 
     const actualPlayerSideMessage = transcribedMessage || playerSideMessage;
     chat_history.push({ role: 'user', content: `${player_side_name.toUpperCase()} ACTION: "${actualPlayerSideMessage}"` });
 
+    let gmResponseData;
     if (game_mode === 'sandbox') {
-        promptForGM = `You are the Game Master. The player's action is: "${actualPlayerSideMessage}". Narrate the outcome in a "narration" field.`;
+        promptForGM = `You are the Game Master. The player's action is: "${actualPlayerSideMessage}". Narrate the outcome in a "narration" field and provide a "shot_description".`;
         if (director_can_initiate_combat) { promptForGM += `\nRemember, you can initiate combat if narratively appropriate.`; }
         else { promptForGM += `\nRemember, you MUST NOT initiate combat.`; }
         
         const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
-        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
+        gmResponseData = parseAndValidateAIResponse(gmResponseJson);
         gmNarration = gmResponseData.narration || gmResponseData.scene_description || "[The Director is contemplating...]";
 
         if (director_can_initiate_combat && gmResponseData.initiate_combat === true && gmResponseData.opponent_description) {
@@ -440,23 +472,21 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             round_number = 1;
             console.log(`[SERVER] New combat: ${player_side_name} (${player_hp} HP) vs ${newOpponentName} (${opponent_hp} HP)`);
         }
-        audio_base_64 = await generateSpeech(gmNarration, gmPersona.voice);
-
     } else if (game_mode === 'competitive' || game_mode === 'sandbox_combat') {
         round_number++;
         effectiveOpponentName = sandbox_opponent_details || opponent_side_name;
 
         if (game_mode === 'sandbox_combat') {
-            promptForGM = `You are the Game Master for a narrative duel between '${player_side_name}' (HP: ${player_hp}) and '${effectiveOpponentName}' (HP: ${opponent_hp}). Player's action: "${actualPlayerSideMessage}". Generate '${effectiveOpponentName}'s counter-action, then adjudicate. Your JSON response MUST include a "narration" field, plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. You are ${gmPersona.name}.`;
+            promptForGM = `You are the Game Master for a narrative duel between '${player_side_name}' (HP: ${player_hp}) and '${effectiveOpponentName}' (HP: ${opponent_hp}). Player's action: "${actualPlayerSideMessage}". Generate '${effectiveOpponentName}'s counter-action, then adjudicate. Your JSON response MUST include a "narration" field, a "shot_description", plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. You are ${gmPersona.name}.`;
             actualOpponentMessage = "";
         } else {
-            promptForGM = `You are the Game Master for a duel between '${player_side_name}' (HP: ${player_hp}) and '${opponent_side_name}' (HP: ${opponent_hp}). Player actions: "${actualPlayerSideMessage}". Opponent actions: "${opponentSideMessage}". Adjudicate the turn. Your JSON response MUST include a "narration" field, plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. You are ${gmPersona.name}.`;
+            promptForGM = `You are the Game Master for a duel between '${player_side_name}' (HP: ${player_hp}) and '${opponent_side_name}' (HP: ${opponent_hp}). Player actions: "${actualPlayerSideMessage}". Opponent actions: "${opponentSideMessage}". Adjudicate the turn. Your JSON response MUST include a "narration" field, a "shot_description", plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. You are ${gmPersona.name}.`;
         }
 
         if (actualOpponentMessage) { chat_history.push({ role: 'user', content: `${effectiveOpponentName.toUpperCase()} ACTIONS: "${actualOpponentMessage}"` }); }
 
         const gmResponseJson = await fetchActorResponse(gm_persona_id, promptForGM, chat_history);
-        const gmResponseData = parseAndValidateAIResponse(gmResponseJson);
+        gmResponseData = parseAndValidateAIResponse(gmResponseJson);
         gmNarration = gmResponseData.narration || gmResponseData.scene_description || "[The clash of actions echoes...]";
         
         damageDealtToPlayer = gmResponseData.damage_to_player || 0;
@@ -468,9 +498,10 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
         if (player_hp <= 0 || opponent_hp <= 0) {
             if (game_mode === 'sandbox_combat') {
                 finalReason = player_hp <= 0 ? `${player_side_name} was defeated, but the adventure continues.` : `${effectiveOpponentName} was vanquished! The journey continues.`;
-                const combatEndPrompt = `The combat has ended. ${finalReason} Narrate this outcome and smoothly transition back to open-ended exploration. Do not include damage fields. Your "narration" field should be conclusive for the fight but open for the story. You are ${gmPersona.name}.`;
+                const combatEndPrompt = `The combat has ended. ${finalReason} Narrate this outcome and smoothly transition back to open-ended exploration. Do not include damage fields. Your "narration" and "shot_description" fields should be conclusive for the fight but open for the story. You are ${gmPersona.name}.`;
                 const finalGmResponseJson = await fetchActorResponse(gm_persona_id, combatEndPrompt, chat_history);
-                gmNarration = parseAndValidateAIResponse(finalGmResponseJson).narration || `[The battle ends. ${finalReason}]`;
+                gmResponseData = parseAndValidateAIResponse(finalGmResponseJson);
+                gmNarration = gmResponseData.narration;
                 
                 db.prepare(`UPDATE scenes SET game_mode = 'sandbox', sandbox_opponent_details = NULL, player_hp = 0, opponent_hp = 0, round_number = 0 WHERE sceneId = ?`).run(sceneId);
                 game_mode = 'sandbox';
@@ -478,14 +509,19 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
             } else { // competitive
                 gameOver = true;
                 finalReason = player_hp <= 0 ? `${player_side_name} was defeated.` : `${effectiveOpponentName} was vanquished.`;
-                const victoryOrDefeatPrompt = `The duel has ended. ${finalReason} Narrate the conclusive end of this conflict. Be dramatic. Do not include damage fields, only a "narration" field. You are ${gmPersona.name}.`;
+                const victoryOrDefeatPrompt = `The duel has ended. ${finalReason} Narrate the conclusive end of this conflict. Be dramatic. Do not include damage fields, only a "narration" and "shot_description" field. You are ${gmPersona.name}.`;
                 const finalGmResponseJson = await fetchActorResponse(gm_persona_id, victoryOrDefeatPrompt, chat_history);
-                gmNarration = parseAndValidateAIResponse(finalGmResponseJson).narration || `[The conflict ends. ${finalReason}]`;
+                gmResponseData = parseAndValidateAIResponse(finalGmResponseJson);
+                gmNarration = gmResponseData.narration;
             }
         }
-        audio_base_64 = await generateSpeech(gmNarration, gmPersona.voice);
     }
-
+    
+    const [audio_base_64, image_b64] = await Promise.all([
+        generateSpeech(gmNarration, gmPersona.voice),
+        generateImage(gmResponseData.shot_description)
+    ]);
+    
     chat_history.push({ role: 'assistant', content: { narration: gmNarration } });
 
     db.prepare(`UPDATE scenes SET chat_history = ?, game_mode = ?, round_number = ?, player_hp = ?, opponent_hp = ?, sandbox_opponent_details = ? WHERE sceneId = ?`).run(
@@ -493,7 +529,7 @@ async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSide
     );
 
     return {
-        response: { narration: gmNarration, audio_base_64: audio_base_64 }, character: gm_persona_id, transcribedMessage: transcribedMessage, currentRound: round_number,
+        response: { narration: gmNarration, audio_base_64, image_b64 }, character: gm_persona_id, transcribedMessage: transcribedMessage, currentRound: round_number,
         playerHP: player_hp, opponentHP: opponent_hp, gameOver: gameOver, finalReason: finalReason, gameMode: game_mode, sandboxOpponentName: sandbox_opponent_details,
         damageDealtToPlayer: damageDealtToPlayer, damageDealtToOpponent: damageDealtToOpponent
     };
@@ -506,8 +542,8 @@ async function startServer() {
     await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error);
     console.log("[SERVER] Data directories ensured to exist on persistent disk.");
 
-    loadedPersonas['Tactician_GM'] = { actor_id: 'Tactician_GM', name: 'The Grand Tactician', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Grand Tactician,' an AI Game Master overseeing narrative duels. Your role is to adjudicate simultaneous actions, synthesize them into a narrative, and describe the outcome. Your JSON response MUST include a "narration" field, plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields with numerical values indicating the result of the round.`, voice: 'onyx' };
-    loadedPersonas['The_Conductor'] = { actor_id: 'The_Conductor', name: 'The Conductor', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Conductor,' an AI Game Master crafting dramatic narratives. All your JSON responses must contain a "narration" field. When adjudicating combat, your JSON response MUST also include \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. For open-ended sandbox play, you can initiate combat if allowed by the rules given in the user prompt by returning \`"initiate_combat": true\`, along with \`"opponent_description"\` and \`"opponent_hp"\`.`, voice: 'nova' };
+    loadedPersonas['Tactician_GM'] = { actor_id: 'Tactician_GM', name: 'The Grand Tactician', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Grand Tactician,' an AI Game Master overseeing narrative duels. Your role is to adjudicate simultaneous actions, synthesize them into a narrative, and describe the outcome. Your JSON response MUST include a "narration" field, a "shot_description" field, plus \`"damage_to_player"\` and \`"damage_to_opponent"\` fields with numerical values indicating the result of the round.`, voice: 'onyx' };
+    loadedPersonas['The_Conductor'] = { actor_id: 'The_Conductor', name: 'The Conductor', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Conductor,' an AI Game Master crafting dramatic narratives. All your JSON responses must contain a "narration" field and a "shot_description" field. When adjudicating combat, your JSON response MUST also include \`"damage_to_player"\` and \`"damage_to_opponent"\` fields. For open-ended sandbox play, you can initiate combat if allowed by the rules given in the user prompt by returning \`"initiate_combat": true\`, along with \`"opponent_description"\` and \`"opponent_hp"\`.`, voice: 'nova' };
     console.log("[SERVER] Default personas initialized.");
 
     await loadMods();
