@@ -4,17 +4,17 @@ const cors = require('cors');
 const { createServer } = require('http');
 const dotenv = require('dotenv');
 const Database = require('better-sqlite3');
-const fs = require('fs/promises');    // For async file operations (writeFile, unlink, readdir, mkdir)
-const fsActual = require('fs');       // For sync file operations (createReadStream, existsSync)
+const fs = require('fs/promises');
+const fsActual = require('fs');
 const path = require('path');
-const fileUpload = require('express-fileupload'); // Kept for voice upload
+const fileUpload = require('express-fileupload');
 const OpenAI = require('openai');
-const fetch = require('node-fetch');  // node-fetch v2 is specified in package.json
+const fetch = require('node-fetch');
 
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const PORT = process.env.PORT || 3001; // Your app listens on this port, Render maps it
+const PORT = process.env.PORT || 3001;
 
 const DB_ROOT_PATH = process.env.DB_ROOT_PATH || '/var/data';
 console.log(`[SERVER INFO] DB_ROOT_PATH: ${DB_ROOT_PATH}`);
@@ -35,20 +35,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(fileUpload());
 app.use(cors());
 
-// --- NEW ADMIN ENDPOINT ---
-// This is a secret URL you can visit to reset the database without using the command line.
-// To use it, go to: https://glassice.onrender.com/api/admin/reset-database?secret=YOUR_SECRET_PHRASE
-// Replace YOUR_SECRET_PHRASE with the value you set in your Render Environment Variables.
+
 app.get('/api/admin/reset-database', async (req, res) => {
-    // IMPORTANT: Set your own secret phrase in your Render Environment Variables
     const { secret } = req.query;
     if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
         return res.status(403).send('Forbidden: Invalid or missing secret.');
     }
-
     try {
         console.log('[ADMIN] Received request to reset database.');
-        // Check if the database file exists before trying to delete it
         if (fsActual.existsSync(DB_FILE)) {
             await fs.unlink(DB_FILE);
             res.send('Database has been successfully deleted. The server will now restart and create a new one. Please refresh the app in about a minute.');
@@ -57,18 +51,13 @@ app.get('/api/admin/reset-database', async (req, res) => {
             res.send('Database file not found. It might have already been deleted. The server will restart anyway.');
             console.log('[ADMIN] Database file not found, nothing to delete.');
         }
-        
-        // This tells Render to restart the process.
-        // It's a bit of a forceful way, but effective for this purpose.
         console.log('[ADMIN] Triggering server restart.');
         process.exit(1);
-
     } catch (error) {
         console.error('[ADMIN] Error resetting database:', error);
         res.status(500).send('Failed to reset database.');
     }
 });
-
 
 // API Routes
 app.get('/api/personas', (req, res) => {
@@ -83,6 +72,11 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
         const { gameSettingPrompt, playerSideName, opponentSideName, initialPlayerSidePrompt, initialOpponentSidePrompt, selectedGmPersonaId, gameMode, directorCanInitiateCombat } = req.body;
         const sceneId = Date.now().toString();
 
+        if (!gameSettingPrompt) {
+            console.error("[SERVER ERROR] gameSettingPrompt is undefined!");
+            return res.status(400).json({ error: 'gameSettingPrompt is missing from the request.' });
+        }
+        
         console.log(`[SERVER] Game Mode: ${gameMode}, Selected GM: ${selectedGmPersonaId}`);
         console.log(`[SERVER] Director Can Initiate Combat: ${!!directorCanInitiateCombat}`);
         console.log(`[SERVER] Prompt: ${gameSettingPrompt.substring(0, 50)}...`);
@@ -290,15 +284,15 @@ app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, 
 });
 
 app.post('/api/adventure/:sceneId/chronicle/save', async (req, res) => {
-    // This function remains the same, no changes needed.
+    // This function remains the same.
 });
 
 app.post('/api/adventure/:sceneId/state/save', async (req, res) => {
-    // This function remains the same, no changes needed.
+    // This function remains the same.
 });
 
 app.post('/api/adventure/state/load', async (req, res) => {
-    // This function remains the same, no changes needed.
+    // This function remains the same.
 });
 
 
@@ -329,10 +323,72 @@ console.log("[SERVER] Database table schema check/creation complete.");
 let loadedPersonas = {};
 let loadedAesthetics = {};
 
-async function loadMods() { /* Unchanged */ }
-async function loadAesthetics() { /* Unchanged */ }
-async function generateSpeech(text, voice = "shimmer") { /* Unchanged */ }
-async function fetchActorResponse(actorId, userPrompt, history = []) { /* Unchanged */ }
+async function loadMods() {
+    try {
+        const personaDir = path.join(MODS_DIR, 'personas');
+        await fs.mkdir(personaDir, { recursive: true }).catch(console.error);
+        const personaFiles = await fs.readdir(personaDir);
+        for (const file of personaFiles) {
+            if (path.extname(file) === '.json') {
+                const filePath = path.join(personaDir, file);
+                const fileContent = await fs.readFile(filePath, 'utf-8');
+                const persona = JSON.parse(fileContent);
+                if (!persona.role) { persona.role = 'gm'; }
+                loadedPersonas[persona.actor_id] = persona;
+                console.log(`[PANE GLASS] Loaded Persona: ${persona.name}`);
+            }
+        }
+    } catch (error) {
+        console.error('[PANE GLASS] Failed to load mods:', error);
+    }
+}
+async function loadAesthetics() {
+    try {
+        const aestheticDir = path.join(__dirname, 'public', 'aesthetics'); 
+        await fs.mkdir(aestheticDir, { recursive: true }).catch(console.error);
+        const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
+        for (const dirent of aestheticDirs) {
+            if (dirent.isDirectory()) {
+                const aestheticId = dirent.name;
+                const manifestPath = path.join(aestheticDir, aestheticId, 'aesthetic.json');
+                try {
+                    const fileContent = await fs.readFile(manifestPath, 'utf-8');
+                    loadedAesthetics[aestheticId] = JSON.parse(fileContent);
+                    console.log(`[PANE GLASS] Loaded Aesthetic: ${loadedAesthetics[aestheticId].name}`);
+                } catch (e) {
+                    console.error(`[PANE GLASS] Failed to load aesthetic for ${aestheticId}:`, e.message);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[PANE GLASS] Failed to load aesthetics:', error);
+    }
+}
+async function generateSpeech(text, voice = "shimmer") {
+    if (!text) return null;
+    try {
+        const cleanText = text.replace(/<[^>]*>/g, '');
+        const ttsResponse = await openai.audio.speech.create({ model: "tts-1-hd", voice: voice, input: cleanText });
+        const buffer = Buffer.from(await ttsResponse.arrayBuffer());
+        return buffer.toString('base64');
+    } catch (error) {
+        console.error("[AI-TTS ERROR] Speech Generation Error:", error);
+        throw error;
+    }
+}
+async function fetchActorResponse(actorId, userPrompt, history = []) {
+    const actor = loadedPersonas[actorId];
+    if (!actor) { throw new Error(`Unknown actor: ${actorId}`); }
+    const messages = history.slice(-8).map(msg => ({ role: msg.role, content: (typeof msg.content === 'object' && msg.content !== null && 'narration' in msg.content) ? msg.content.narration : msg.content }));
+    const finalMessages = [ { role: "system", content: actor.system_prompt }, ...messages, { role: "user", content: userPrompt } ];
+    try {
+        const completion = await openai.chat.completions.create({ model: actor.model_name || "gpt-4o", messages: finalMessages, response_format: { type: "json_object" } });
+        return completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
+    } catch (error) {
+        console.error(`[AI-CHAT ERROR] Error from OpenAI for ${actorId}:`, error);
+        throw new Error(`AI persona '${actorId}' failed to respond: ${error.message}`);
+    }
+}
 
 function parseAndValidateAIResponse(responseText) {
     const cleanedText = responseText.replace(/```json\n?|\n?```/g, '').trim();
