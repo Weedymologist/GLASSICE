@@ -328,14 +328,22 @@
 
             const prepareSandboxChronicle = async () => {
                 const directorCanInitiateCombat = document.getElementById('director-conflict-checkbox').checked;
-                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox', directorCanInitiateCombat };
+                const body = {
+                    gameSettingPrompt: ui.prompt.value.trim(),
+                    playerSideName: ui.playerSideNameInput.value.trim(),
+                    opponentSideName: '', // Explicitly send empty strings for unused fields
+                    initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(),
+                    initialOpponentSidePrompt: '', // Explicitly send empty strings
+                    selectedGmPersonaId: ui.gmSelector.value,
+                    gameMode: 'sandbox',
+                    directorCanInitiateCombat: directorCanInitiateCombat
+                };
                 if (!body.gameSettingPrompt || !body.playerSideName || !body.initialPlayerSidePrompt || !body.selectedGmPersonaId) { alert("Please complete all required fields and select a Director."); return; }
                 dynamicGameState.playerSideName = body.playerSideName;
                 startChronicle(body);
             };
 
             const prepareCompetitiveChronicle = async () => {
-                // *** THE FIX IS HERE ***
                 const body = { 
                     gameSettingPrompt: ui.prompt.value.trim(), 
                     playerSideName: ui.playerSideNameInput.value.trim(), 
@@ -344,7 +352,7 @@
                     initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), 
                     selectedGmPersonaId: 'Tactician_GM', 
                     gameMode: 'competitive',
-                    directorCanInitiateCombat: true // This line was missing
+                    directorCanInitiateCombat: true
                 };
                 if (!body.gameSettingPrompt || !body.playerSideName || !body.opponentSideName || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) { alert("Please complete all required fields."); return; }
                 dynamicGameState.playerSideName = body.playerSideName; dynamicGameState.opponentSideName = body.opponentSideName;
