@@ -35,6 +35,41 @@ app.use(express.json({ limit: '50mb' }));
 app.use(fileUpload());
 app.use(cors());
 
+// --- NEW ADMIN ENDPOINT ---
+// This is a secret URL you can visit to reset the database without using the command line.
+// To use it, go to: https://glassice.onrender.com/api/admin/reset-database?secret=YOUR_SECRET_PHRASE
+// Replace YOUR_SECRET_PHRASE with the value you set in your Render Environment Variables.
+app.get('/api/admin/reset-database', async (req, res) => {
+    // IMPORTANT: Set your own secret phrase in your Render Environment Variables
+    const { secret } = req.query;
+    if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).send('Forbidden: Invalid or missing secret.');
+    }
+
+    try {
+        console.log('[ADMIN] Received request to reset database.');
+        // Check if the database file exists before trying to delete it
+        if (fsActual.existsSync(DB_FILE)) {
+            await fs.unlink(DB_FILE);
+            res.send('Database has been successfully deleted. The server will now restart and create a new one. Please refresh the app in about a minute.');
+            console.log(`[ADMIN] Successfully deleted database file at ${DB_FILE}.`);
+        } else {
+            res.send('Database file not found. It might have already been deleted. The server will restart anyway.');
+            console.log('[ADMIN] Database file not found, nothing to delete.');
+        }
+        
+        // This tells Render to restart the process.
+        // It's a bit of a forceful way, but effective for this purpose.
+        console.log('[ADMIN] Triggering server restart.');
+        process.exit(1);
+
+    } catch (error) {
+        console.error('[ADMIN] Error resetting database:', error);
+        res.status(500).send('Failed to reset database.');
+    }
+});
+
+
 // API Routes
 app.get('/api/personas', (req, res) => {
     const selectablePersonas = Object.values(loadedPersonas).filter(p => p.role === 'gm');
