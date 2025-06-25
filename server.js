@@ -131,7 +131,6 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
         const gmNarration = initialGMResponseData.narration || initialGMResponseData.scene_description || "[Initiation failed...]";
         console.log(`[SERVER] GM Narration for Speech: ${gmNarration.substring(0, 100)}...`);
 
-        // --- NEW: Generate image and audio in parallel ---
         const [audio_base_64, image_b64] = await Promise.all([
             generateSpeech(gmNarration, gmPersonaToUse.voice),
             generateImage(initialGMResponseData.shot_description)
@@ -145,7 +144,7 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
 
         res.json({
             sceneId,
-            response: { narration: gmNarration, audio_base_64, image_b64 }, // Added image_b64
+            response: { narration: gmNarration, audio_base_64, image_b64 },
             character: gmPersonaToUse.actor_id,
             gameMode: gameMode,
             currentRound: initialRoundNumber,
@@ -304,20 +303,20 @@ app.post('/api/adventure/state/load', async (req, res) => {
 });
 
 
-// --- THIS IS THE FIX ---
-// Old: const PUBLIC_DIR = path.join(__dirname, 'public');
-// On Render, __dirname is /opt/render/project/src, so we need to go up one level.
-const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-// ----------------------
+// --- CORRECTED PATH LOGIC ---
+// The shell shows 'public' is inside the same directory as server.js, so '..' is not needed.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+// ----------------------------
 
 app.use(express.static(PUBLIC_DIR));
 app.get('*', (req, res) => {
-    const indexPath = path.join(PUBLIC_DIR, 'index.html');
-    console.log(`[SERVER] Attempting to serve index.html from: ${indexPath}`);
+    // Corrected the filename to match 'Index.html' from the server shell.
+    const indexPath = path.join(PUBLIC_DIR, 'Index.html');
+    console.log(`[SERVER] Attempting to serve file from: ${indexPath}`);
     res.sendFile(indexPath, (err) => {
         if (err) {
-            console.error(`[SERVER ERROR] Failed to send index.html:`, err);
-            res.status(500).send("Could not load the application's main page.");
+            console.error(`[SERVER ERROR] Failed to send file:`, err);
+            res.status(404).send("Could not find the application's main page.");
         }
     });
 });
@@ -364,7 +363,7 @@ async function loadMods() {
 }
 async function loadAesthetics() {
     try {
-        const aestheticDir = path.join(__dirname, '..', 'public', 'aesthetics'); // Corrected this path as well
+        const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
         await fs.mkdir(aestheticDir, { recursive: true }).catch(console.error);
         const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
         for (const dirent of aestheticDirs) {
@@ -393,10 +392,9 @@ async function generateSpeech(text, voice = "shimmer") {
         return buffer.toString('base64');
     } catch (error) {
         console.error("[AI-TTS ERROR] Speech Generation Error:", error);
-        return null; // Return null instead of throwing to not break the turn
+        return null; 
     }
 }
-// --- NEW FUNCTION TO GENERATE IMAGES ---
 async function generateImage(shotDescription) {
     if (!shotDescription) {
         console.log("[AI-IMAGE] No shot description provided, skipping image generation.");
@@ -415,7 +413,7 @@ async function generateImage(shotDescription) {
         return response.data[0].b64_json;
     } catch (error) {
         console.error("[AI-IMAGE ERROR] DALL-E Image Generation Error:", error);
-        return null; // Return null on error so the game can continue
+        return null; 
     }
 }
 
