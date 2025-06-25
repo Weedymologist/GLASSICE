@@ -10,7 +10,14 @@
     <style>
         :root{--bg-color:#02040a;--glass-bg:rgba(10,20,40,0.6);--border-color:rgba(0,195,255,0.3);--primary-glow:rgba(0,195,255,0.7);--text-color:#e0e1f0;--primary-accent:#00c3ff;--user-accent:#00ffaa;--system-accent:#ffff00;--error-accent:#ff4136;--opponent-color:#ff99ff;--font-heading:'Orbitron',sans-serif;--font-body:'Roboto Mono',monospace}
         *{box-sizing:border-box;margin:0;padding:0}
-        body{background-color:var(--bg-color);color:var(--text-color);font-family:var(--font-body);display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;overflow:hidden;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,0.05) 1px,transparent 0);background-size:20px 20px}
+        
+        /* MODIFIED: Body is now transparent to let the canvas show through */
+        body{background-color:transparent;color:var(--text-color);font-family:var(--font-body);display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;overflow:hidden;}
+        
+        /* NEW: Background Canvas for Images */
+        #background-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;background-color:var(--bg-color);background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,0.05) 1px,transparent 0);background-size:20px 20px;background-position:center;transition:background-image 1s ease-in-out;}
+        .image-cover { background-size: cover !important; }
+
         .screen{width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center}
         .screen.active{display:flex}
         .hidden{display:none!important}
@@ -80,6 +87,8 @@
     </style>
 </head>
 <body>
+    <div id="background-canvas" class="image-cover"></div> <!-- NEW CANVAS ELEMENT -->
+
     <div id="hub-screen" class="screen active">
         <div class="hub-container">
             <header class="hub-header">
@@ -275,6 +284,9 @@
             const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLog.appendChild(entryDiv); return typewriter(contentSpan, content || ''); };
             const setLoading = (isLoading, message = "Processing...") => { ui.loaderText.textContent = message; ui.loaderOverlay.classList.toggle('hidden', !isLoading); };
             
+            // --- NEW FUNCTION TO UPDATE BACKGROUND IMAGE ---
+            const updateBackgroundImage = (b64_image) => { if (b64_image) { ui.backgroundCanvas.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`; } };
+
             async function fetchAPI(endpoint, options = {}) { try { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error); } return response.json(); } catch (error) { console.error(`API Error on ${endpoint}:`, error); addLog(`Server communication failed: ${error.message}.`, "System", "system-error"); setLoading(false); toggleCompetitiveInputOverlay(true); dynamicGameState.turnPhase = 'player_side_input'; updateInputState(); throw error; } }
             
             const toggleCompetitiveInputOverlay = (show) => { competitiveInputOverlay.classList.toggle('hidden', !show); if (show) updateInputState(); };
@@ -304,6 +316,8 @@
 
                     dynamicGameState.currentRound = data.currentRound; dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP;
                     dynamicGameState.gameOver = data.gameOver; dynamicGameState.gameMode = data.gameMode; dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                    
+                    updateBackgroundImage(data.response.image_b64); // Update background image
 
                     if (isVoiceInput && data.transcribedMessage) { if (ui.chatLog.lastChild && ui.chatLog.lastChild.querySelector('strong.system-info')) { ui.chatLog.lastChild.remove(); } await addLog(data.transcribedMessage, dynamicGameState.playerSideName, 'player-side'); }
                     
@@ -331,9 +345,9 @@
                 const body = {
                     gameSettingPrompt: ui.prompt.value.trim(),
                     playerSideName: ui.playerSideNameInput.value.trim(),
-                    opponentSideName: '',
+                    opponentSideName: '', // Explicitly send empty strings for unused fields
                     initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(),
-                    initialOpponentSidePrompt: '',
+                    initialOpponentSidePrompt: '', // Explicitly send empty strings
                     selectedGmPersonaId: ui.gmSelector.value,
                     gameMode: 'sandbox',
                     directorCanInitiateCombat: directorCanInitiateCombat
@@ -365,6 +379,9 @@
                     const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     dynamicGameState.currentSceneId = data.sceneId; dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound;
                     dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.gameOver = data.gameOver;
+                    
+                    updateBackgroundImage(data.response.image_b64); // Update background image
+                    
                     creationScreen.classList.remove('active'); genesisScreen.classList.add('active');
                     setLoading(false);
                     const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
@@ -423,7 +440,7 @@
             }
             
             async function initializeUIAndData() {
-                ui = { chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
+                ui = { backgroundCanvas: document.getElementById('background-canvas'), chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
                 try { const personasData = await fetchAPI('/api/personas'); dynamicGameState.personas = personasData; populateGmSelector(); }
                 catch (e) { ui.startBtn.disabled = true; ui.startBtn.textContent = 'CONNECTION FAILED'; }
 
@@ -444,6 +461,9 @@
                     try {
                         const data = await fetchAPI(`/api/dynamic-narrative/${dynamicGameState.currentSceneId}/initiate-sandbox-combat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ opponentDescription: sandboxOpponentDescriptionInput.value.trim() }) });
                         dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound; dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                        
+                        updateBackgroundImage(data.response.image_b64); // Update background image
+
                         setLoading(false);
                         const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
                         const audioPlayPromise = new Promise(resolve => setTimeout(async () => { await playAudio(data.response.audio_base_64); resolve(); }, 1500));
