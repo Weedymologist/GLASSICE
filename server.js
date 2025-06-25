@@ -304,10 +304,22 @@ app.post('/api/adventure/state/load', async (req, res) => {
 });
 
 
-const PUBLIC_DIR = path.join(__dirname, 'public');
+// --- THIS IS THE FIX ---
+// Old: const PUBLIC_DIR = path.join(__dirname, 'public');
+// On Render, __dirname is /opt/render/project/src, so we need to go up one level.
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+// ----------------------
+
 app.use(express.static(PUBLIC_DIR));
 app.get('*', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'index.html')); 
+    const indexPath = path.join(PUBLIC_DIR, 'index.html');
+    console.log(`[SERVER] Attempting to serve index.html from: ${indexPath}`);
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error(`[SERVER ERROR] Failed to send index.html:`, err);
+            res.status(500).send("Could not load the application's main page.");
+        }
+    });
 });
 
 const server = createServer(app);
@@ -352,7 +364,7 @@ async function loadMods() {
 }
 async function loadAesthetics() {
     try {
-        const aestheticDir = path.join(__dirname, 'public', 'aesthetics'); 
+        const aestheticDir = path.join(__dirname, '..', 'public', 'aesthetics'); // Corrected this path as well
         await fs.mkdir(aestheticDir, { recursive: true }).catch(console.error);
         const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
         for (const dirent of aestheticDirs) {
