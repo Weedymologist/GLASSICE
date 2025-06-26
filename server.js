@@ -1,6 +1,6 @@
 // P.A.N.E. GLASS - v27.0 ("Maestro") - Interactive Chronicle Engine (ICE) - VISUAL INTEGRATION
 const express = require('express');
-const cors = require('cors');
+const cors =require('cors');
 const { createServer } = require('http');
 const dotenv = require('dotenv');
 const Database = require('better-sqlite3');
@@ -37,7 +37,26 @@ app.use(cors());
 
 
 app.get('/api/admin/reset-database', async (req, res) => {
-    // ... (This function is correct, no changes needed)
+    const { secret } = req.query;
+    if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).send('Forbidden: Invalid or missing secret.');
+    }
+    try {
+        console.log('[ADMIN] Received request to reset database.');
+        if (fsActual.existsSync(DB_FILE)) {
+            await fs.unlink(DB_FILE);
+            res.send('Database has been successfully deleted. The server will now restart and create a new one. Please refresh the app in about a minute.');
+            console.log(`[ADMIN] Successfully deleted database file at ${DB_FILE}.`);
+        } else {
+            res.send('Database file not found. It might have already been deleted. The server will restart anyway.');
+            console.log('[ADMIN] Database file not found, nothing to delete.');
+        }
+        console.log('[ADMIN] Triggering server restart.');
+        process.exit(1);
+    } catch (error) {
+        console.error('[ADMIN] Error resetting database:', error);
+        res.status(500).send('Failed to reset database.');
+    }
 });
 
 // API Routes
@@ -48,19 +67,109 @@ app.get('/api/personas', (req, res) => {
 app.get('/api/aesthetics', (req, res) => res.json(loadedAesthetics));
 
 app.post('/api/dynamic-narrative/start', async (req, res) => {
-    // ... (This function is correct, no changes needed)
+    console.log("[SERVER] Received /api/dynamic-narrative/start request.");
+    try {
+        const { gameSettingPrompt, playerSideName, opponentSideName, initialPlayerSidePrompt, initialOpponentSidePrompt, selectedGmPersonaId, gameMode, directorCanInitiateCombat } = req.body;
+        const sceneId = Date.now().toString();
+
+        if (!gameSettingPrompt) {
+            console.error("[SERVER ERROR] gameSettingPrompt is undefined!");
+            return res.status(400).json({ error: 'gameSettingPrompt is missing from the request.' });
+        }
+        
+        console.log(`[SERVER] Game Mode: ${gameMode}, Selected GM: ${selectedGmPersonaId}`);
+        console.log(`[SERVER] Director Can Initiate Combat: ${!!directorCanInitiateCombat}`);
+        console.log(`[SERVER] Prompt: ${gameSettingPrompt.substring(0, 50)}...`);
+
+        if (!['competitive', 'sandbox'].includes(gameMode)) {
+            return res.status(400).json({ error: 'Invalid game mode specified.' });
+        }
+
+        const initialPlayerHP = gameMode === 'competitive' ? 3 : 0;
+        const initialOpponentHP = gameMode === 'competitive' ? 3 : 0;
+        const initialRoundNumber = 0;
+
+        const gmPersonaToUse = loadedPersonas[selectedGmPersonaId];
+        if (!gmPersonaToUse) {
+            console.error(`[SERVER ERROR] Selected GM Persona not found: ${selectedGmPersonaId}`);
+            return res.status(400).json({ error: `Selected GM Persona '${selectedGmPersonaId}' not found.` });
+        }
+        console.log(`[SERVER] Using GM Persona: ${gmPersonaToUse.name} (${gmPersonaToUse.actor_id})`);
+
+
+        db.prepare('INSERT INTO scenes (sceneId, chat_history, gm_persona_id, game_mode, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp, director_can_initiate_combat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            sceneId, "[]", gmPersonaToUse.actor_id, gameMode, playerSideName, opponentSideName || 'Opponent',
+            initialRoundNumber, initialPlayerHP, initialOpponentHP, directorCanInitiateCombat ? 1 : 0
+        );
+        console.log(`[SERVER] Scene ${sceneId} inserted into database.`);
+
+
+        let initialPromptForGM;
+        if (gameMode === 'sandbox') {
+            initialPromptForGM = `You are the Game Master for an open-ended narrative experience. The game setting is: "${gameSettingPrompt}". The player, '${playerSideName}', has presented this opening strategy/composition: "${initialPlayerSidePrompt}". Synthesize this information to introduce the scene, the player's initial status, and set the stage. Conclude by presenting a compelling 'what if' scenario or a clear choice for the player's first move. You are ${gmPersonaToUse.name}. Your JSON response must contain a "narration" field and a "shot_description" field for a background image.`;
+            if (directorCanInitiateCombat) {
+                 initialPromptForGM += `\nIMPORTANT RULE: You are allowed to initiate combat if the player's actions lead to a dangerous situation. To do so, your JSON response MUST include \`"initiate_combat": true\`, a description of the opponent in \`"opponent_description"\`, and their starting health in \`"opponent_hp"\`.`;
+            } else {
+                initialPromptForGM += `\nIMPORTANT RULE: You are in a non-confrontational 'Easy Mode'. You MUST NOT initiate combat under any circumstances. The player is the only one who can start a fight. Focus on collaborative storytelling, character interaction, and world exploration.`;
+            }
+        } else { // competitive
+            initialPromptForGM = `You are the Game Master for a competitive narrative duel between two sides: '${playerSideName}' and '${opponentSideName}'.
+            The game setting is: "${gameSettingPrompt}".
+            Player Side '${playerSideName}'s opening strategy/composition: "${initialPlayerSidePrompt}"
+            Opponent Side '${opponentSideName}'s opening strategy/composition: "${initialOpponentSidePrompt}"
+            Synthesize this information to introduce the scene, the initial positions/stakes for both sides, and set the stage for their first turn of actions.
+            
+            This is a duel of attrition. Your JSON response MUST include \`"damage_to_player"\` and \`"damage_to_opponent"\` fields with numerical values, reflecting who gained the upper hand in this specific round. Your response also needs a "narration" field and a "shot_description" field. You are ${gmPersonaToUse.name}.`;
+        }
+        console.log(`[SERVER] Initial Prompt for GM: ${initialPromptForGM.substring(0, 100)}...`);
+
+        const initialGMResponseJson = await fetchActorResponse(gmPersonaToUse.actor_id, initialPromptForGM, []);
+        console.log(`[SERVER] Raw AI Response for Start: ${initialGMResponseJson.substring(0, 100)}...`);
+        const initialGMResponseData = parseAndValidateAIResponse(initialGMResponseJson);
+        console.log(`[SERVER] Parsed AI Response Data:`, initialGMResponseData);
+
+        const gmNarration = initialGMResponseData.narration || initialGMResponseData.scene_description || "[Initiation failed...]";
+        console.log(`[SERVER] GM Narration for Speech: ${gmNarration.substring(0, 100)}...`);
+
+        const [audio_base_64, image_b64] = await Promise.all([
+            generateSpeech(gmNarration, gmPersonaToUse.voice),
+            generateImage(initialGMResponseData.shot_description)
+        ]);
+        console.log(`[SERVER] Speech & Image generation complete.`);
+
+
+        let history = [{ role: 'assistant', content: { narration: gmNarration } }];
+        db.prepare('UPDATE scenes SET chat_history = ? WHERE sceneId = ?').run(JSON.stringify(history), sceneId);
+        console.log(`[SERVER] Chat history updated in DB for scene ${sceneId}.`);
+
+        res.json({
+            sceneId,
+            response: { narration: gmNarration, audio_base_64, image_b64 },
+            character: gmPersonaToUse.actor_id,
+            gameMode: gameMode,
+            currentRound: initialRoundNumber,
+            playerHP: initialPlayerHP,
+            opponentHP: initialOpponentHP,
+            gameOver: false
+        });
+        console.log("[SERVER] Response sent for /api/dynamic-narrative/start.");
+
+    } catch (error) {
+        console.error("[SERVER ERROR] Dynamic Narrative Start Error:", error);
+        res.status(500).json({ error: 'Failed to start dynamic narrative.' });
+    }
 });
 
 app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
-    // ... (This function is correct, no changes needed)
+    // ... (no changes)
 });
 
 app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
-    // ... (This function is correct, no changes needed)
+    // ... (no changes)
 });
 
 app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, res) => {
-    // ... (This function is correct, no changes needed)
+    // ... (no changes)
 });
 
 app.post('/api/adventure/:sceneId/state/save', (req, res) => {
@@ -86,7 +195,17 @@ app.post('/api/adventure/state/load', (req, res) => {
         const newSceneId = Date.now().toString();
 
         db.prepare('INSERT INTO scenes (sceneId, chat_history, gm_persona_id, game_mode, player_side_name, opponent_side_name, round_number, player_hp, opponent_hp, sandbox_opponent_details, director_can_initiate_combat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-            newSceneId, loadedState.chat_history, loadedState.gm_persona_id, loadedState.game_mode, loadedState.player_side_name, loadedState.opponent_side_name, loadedState.round_number, loadedState.player_hp, loadedState.opponent_hp, loadedState.sandbox_opponent_details, loadedState.director_can_initiate_combat
+            newSceneId,
+            loadedState.chat_history,
+            loadedState.gm_persona_id,
+            loadedState.game_mode,
+            loadedState.player_side_name,
+            loadedState.opponent_side_name,
+            loadedState.round_number,
+            loadedState.player_hp,
+            loadedState.opponent_hp,
+            loadedState.sandbox_opponent_details,
+            loadedState.director_can_initiate_combat
         );
         
         console.log(`[SERVER] State loaded into new scene ${newSceneId}.`);
@@ -100,11 +219,9 @@ app.post('/api/adventure/state/load', (req, res) => {
 });
 
 
-// Corrected Path Logic
 const PUBLIC_DIR = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC_DIR));
 app.get('*', (req, res) => {
-    // Looks for the standardized, all-lowercase 'index.html'
     const indexPath = path.join(PUBLIC_DIR, 'index.html');
     console.log(`[SERVER] Attempting to serve file from: ${indexPath}`);
     res.sendFile(indexPath, (err) => {
@@ -123,9 +240,9 @@ console.log("[SERVER] Database table schema check/creation complete.");
 let loadedPersonas = {};
 let loadedAesthetics = {};
 
-async function loadMods() { /* ... no changes */ }
-async function loadAesthetics() { /* ... no changes */ }
-async function generateSpeech(text, voice = "shimmer") { /* ... no changes */ }
+async function loadMods() { /* ... */ }
+async function loadAesthetics() { /* ... */ }
+async function generateSpeech(text, voice = "shimmer") { /* ... */ }
 
 async function generateImage(shotDescription) {
     if (!shotDescription) {
@@ -149,9 +266,11 @@ async function generateImage(shotDescription) {
     }
 }
 
-async function fetchActorResponse(actorId, userPrompt, history = []) { /* ... no changes */ }
-function parseAndValidateAIResponse(responseText) { /* ... no changes */ }
-async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) { /* ... no changes */ }
+async function fetchActorResponse(actorId, userPrompt, history = []) { /* ... */ }
+function parseAndValidateAIResponse(responseText) { /* ... */ }
+async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) {
+    // ... (This entire large function is correct, no changes needed)
+}
 
 async function startServer() {
     console.log("[SERVER] Starting server initialization...");
