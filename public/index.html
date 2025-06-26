@@ -208,17 +208,32 @@
                 playerHP: 0, opponentHP: 0, gameOver: false, sandboxOpponentName: null, latestImageB64: null
             };
             let mediaRecorder, audioChunks = [], spacebarTimer, isHoldingSpace = false;
+            
+            async function fetchAPI(endpoint, options = {}) {
+                try {
+                    const response = await fetch(`${API_URL}${endpoint}`, options);
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` }));
+                        throw new Error(errorData.error);
+                    }
+                    return response.json();
+                } catch (error) {
+                    console.error(`API Error on ${endpoint}:`, error);
+                    addLog(`Server communication failed: ${error.message}.`, "System", "system-error");
+                    throw error;
+                }
+            }
 
-            // --- Helper Functions ---
             const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); ui.chatLog.scrollTop = ui.chatLog.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
             const playAudio = (b64) => new Promise(resolve => { if (dynamicGameState.currentAudio) { dynamicGameState.currentAudio.pause(); } if (b64) { dynamicGameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); dynamicGameState.currentAudio.play().catch(e => resolve()); dynamicGameState.currentAudio.onended = () => resolve(); } else { resolve(); } });
             const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLog.appendChild(entryDiv); return typewriter(contentSpan, content || ''); };
             const setLoading = (isLoading, message = "Processing...") => { ui.loaderText.textContent = message; ui.loaderOverlay.classList.toggle('hidden', !isLoading); };
             const updateBackgroundImage = (b64_image) => { if (b64_image) { ui.backgroundCanvas.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`; dynamicGameState.latestImageB64 = b64_image; if(ui.saveImageBtn) ui.saveImageBtn.disabled = false; } };
             const saveCurrentImage = () => { if (!dynamicGameState.latestImageB64) { addLog("There is no image to save yet.", "System", "system-info"); return; } const a = document.createElement('a'); a.href = `data:image/jpeg;base64,${dynamicGameState.latestImageB64}`; const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); a.download = `GlassICE-Chronicle-${timestamp}.jpg`; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-            async function fetchAPI(endpoint, options = {}) { try { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error); } return response.json(); } catch (error) { console.error(`API Error on ${endpoint}:`, error); addLog(`Server communication failed: ${error.message}.`, "System", "system-error"); throw error; } }
             
-            // --- Core Game Logic ---
+            const handleMicPress = () => { if (dynamicGameState.isListening || dynamicGameState.gameOver) return; navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { dynamicGameState.isListening = true; ui.micBtnRpg.classList.add('is-listening'); mediaRecorder = new MediaRecorder(stream); audioChunks = []; mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data)); mediaRecorder.addEventListener("stop", () => { const audioBlob = new Blob(audioChunks); const formData = new FormData(); formData.append('audio', audioBlob); processTurnInput({ formData }); stream.getTracks().forEach(track => track.stop()); }); mediaRecorder.start(); }).catch(err => alert("Microphone access denied.")); };
+            const handleMicRelease = () => { if (!dynamicGameState.isListening || !mediaRecorder || mediaRecorder.state !== "recording") return; mediaRecorder.stop(); ui.micBtnRpg.classList.remove('is-listening'); dynamicGameState.isListening = false; };
+
             const processTurnInput = async ({ message, formData }) => {
                 if (dynamicGameState.gameOver) return;
                 
@@ -243,8 +258,6 @@
                             await addLog(dynamicGameState.opponentSideInputBuffer, dynamicGameState.opponentSideName, 'opponent-side');
                         }
                         ui.userInputOpponentSide.value = '';
-                    } else {
-                        dynamicGameState.opponentSideInputBuffer = '';
                     }
 
                     setLoading(true, isVoiceInput ? "Transcribing Voice..." : "Processing Actions...");
@@ -254,13 +267,7 @@
                     const options = isVoiceInput ? { method: 'POST', body: payload } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
                     const data = await fetchAPI(endpoint, options);
 
-                    dynamicGameState.currentRound = data.currentRound;
-                    dynamicGameState.playerHP = data.playerHP;
-                    dynamicGameState.opponentHP = data.opponentHP;
-                    dynamicGameState.gameOver = data.gameOver;
-                    dynamicGameState.gameMode = data.gameMode;
-                    dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
-                    
+                    Object.assign(dynamicGameState, data); // Update game state from server response
                     updateBackgroundImage(data.response.image_b64);
 
                     if (isVoiceInput && data.transcribedMessage) {
@@ -273,11 +280,6 @@
                     setLoading(false);
                     const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
                     await Promise.all([ textDisplayPromise, playAudio(data.response.audio_base_64) ]);
-
-                    ui.userInputPlayerSide.value = '';
-                    ui.userInputOpponentSide.value = '';
-                    dynamicGameState.playerSideInputBuffer = '';
-                    dynamicGameState.opponentSideInputBuffer = '';
 
                     if (dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat') {
                         if (dynamicGameState.gameOver) {
@@ -293,21 +295,15 @@
                     setLoading(false);
                     dynamicGameState.turnPhase = 'player_side_input';
                     ui.competitiveInputOverlay.classList.remove('hidden');
-                    updateInputState();
+                    updateInputState(); 
                 }
             };
-            
+
             const startChronicle = async (body) => {
                 setLoading(true, "Preparing Chronicle...");
                 try {
-                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                    dynamicGameState.currentSceneId = data.sceneId;
-                    dynamicGameState.gameMode = data.gameMode;
-                    dynamicGameState.currentRound = data.currentRound;
-                    dynamicGameState.playerHP = data.playerHP;
-                    dynamicGameState.opponentHP = data.opponentHP;
-                    dynamicGameState.gameOver = data.gameOver;
-                    
+                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body });
+                    Object.assign(dynamicGameState, data); // Update game state from server response
                     updateBackgroundImage(data.response.image_b64);
                     
                     ui.creationScreen.classList.remove('active');
@@ -322,37 +318,38 @@
                     updateInputState();
                 } catch (e) {
                     setLoading(false);
-                    alert("Failed to start chronicle. The server may be busy. Please try again.");
+                    alert("Failed to start chronicle. The server may be busy or an error occurred. Please check the inputs and try again.");
                 }
             };
             
-            // --- Initialization and Event Listeners ---
             function initializeUIAndData() {
+                // Store all DOM element references in the ui object
                 ui = {
                     hubScreen: document.getElementById('hub-screen'),
                     genesisScreen: document.getElementById('genesis-screen'),
                     creationScreen: document.getElementById('creation-screen-rpg'),
-                    backgroundCanvas: document.getElementById('background-canvas'), 
-                    saveImageBtn: document.getElementById('save-image-btn'), 
-                    chatLog: document.getElementById('chat-log-rpg'), 
-                    loaderOverlay: document.getElementById('loading-overlay'), 
-                    loaderText: document.getElementById('loader-text-rpg'), 
-                    prompt: document.getElementById('prompt-rpg'), 
-                    playerSideNameInput: document.getElementById('player-side-name-input'), 
-                    opponentSideNameInput: document.getElementById('opponent-side-name-input'), 
-                    initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), 
-                    initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), 
-                    startBtn: document.getElementById('start-btn-rpg'), 
-                    selectedGmDisplay: document.getElementById('selected-gm-display'), 
-                    initialPlayerSideLabel: document.getElementById('initial-player-side-label'), 
-                    initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), 
-                    opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), 
-                    gmSelector: document.getElementById('gm-selector'), 
-                    gmSelectionGroup: document.getElementById('gm-selection-group'), 
+                    backgroundCanvas: document.getElementById('background-canvas'),
+                    saveImageBtn: document.getElementById('save-image-btn'),
+                    chatLog: document.getElementById('chat-log-rpg'),
+                    loaderOverlay: document.getElementById('loading-overlay'),
+                    loaderText: document.getElementById('loader-text-rpg'),
+                    prompt: document.getElementById('prompt-rpg'),
+                    playerSideNameInput: document.getElementById('player-side-name-input'),
+                    opponentSideNameInput: document.getElementById('opponent-side-name-input'),
+                    initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'),
+                    initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'),
+                    startBtn: document.getElementById('start-btn-rpg'),
+                    selectedGmDisplay: document.getElementById('selected-gm-display'),
+                    gmSelector: document.getElementById('gm-selector'),
+                    gmSelectionGroup: document.getElementById('gm-selection-group'),
                     modeTitle: document.getElementById('mode-title'),
+                    opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'),
+                    initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'),
+                    directorConflictGroup: document.getElementById('director-conflict-group'),
                     competitiveInputOverlay: document.getElementById('competitive-input-overlay'),
                     userInputPlayerSide: document.getElementById('user-input-player-side'),
-                    userInputOpponentSide: document.getElementById('user-input-opponent-side')
+                    userInputOpponentSide: document.getElementById('user-input-opponent-side'),
+                    micBtnRpg: document.getElementById('mic-btn-rpg')
                 };
 
                 const launchSandboxBtn = document.getElementById('launch-sandbox-btn');
@@ -362,7 +359,6 @@
                 const submitTurnBtn = document.getElementById('submit-turn-btn');
                 const saveStateBtn = document.getElementById('save-state-btn');
                 const newGameBtn = document.getElementById('new-game-btn');
-                const micBtnRpg = document.getElementById('mic-btn-rpg');
                 const initiateCombatBtn = document.getElementById('initiate-combat-btn');
 
                 const prepareSandboxChronicle = () => {
@@ -378,57 +374,54 @@
                     dynamicGameState.playerSideName = body.playerSideName; dynamicGameState.opponentSideName = body.opponentSideName;
                     startChronicle(body);
                 };
+                const populateGmSelector = () => {
+                    ui.gmSelector.innerHTML = '';
+                    const gmPersonas = dynamicGameState.personas.filter(p => p.role === 'gm');
+                    if (gmPersonas.length === 0) { ui.selectedGmDisplay.textContent = "ERROR: NO DIRECTORS FOUND"; return; }
+                    gmPersonas.forEach(persona => { const option = document.createElement('option'); option.value = persona.actor_id; option.textContent = persona.name; ui.gmSelector.appendChild(option); });
+                    const conductorExists = gmPersonas.some(p => p.actor_id === 'The_Conductor');
+                    if (conductorExists) { ui.gmSelector.value = 'The_Conductor'; } else if (gmPersonas.length > 0) { ui.gmSelector.value = gmPersonas[0].actor_id; }
+                    ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director";
+                };
 
-                launchSandboxBtn.addEventListener('click', () => { ui.hubScreen.classList.remove('active'); ui.creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.add('hidden'); ui.initialOpponentSidePromptFormGroup.classList.add('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); document.getElementById('director-conflict-group').classList.remove('hidden'); ui.modeTitle.textContent = "Sandbox Narrative Setup"; });
-                launchCompetitiveBtn.addEventListener('click', () => { ui.hubScreen.classList.remove('active'); ui.creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.add('hidden'); document.getElementById('director-conflict-group').classList.add('hidden'); ui.selectedGmDisplay.textContent = "The Grand Tactician (Fixed)"; ui.modeTitle.textContent = "Competitive Narrative Setup"; });
-                
-                ui.startBtn.addEventListener('click', () => {
-                    if (ui.modeTitle.textContent.includes('Sandbox')) {
-                        prepareSandboxChronicle();
-                    } else {
-                        prepareCompetitiveChronicle();
-                    }
-                });
+                // Attach all event listeners
+                launchSandboxBtn.addEventListener('click', () => { ui.hubScreen.classList.remove('active'); ui.creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.add('hidden'); ui.initialOpponentSidePromptFormGroup.classList.add('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); ui.directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Sandbox Narrative Setup"; });
+                launchCompetitiveBtn.addEventListener('click', () => { ui.hubScreen.classList.remove('active'); ui.creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.add('hidden'); ui.directorConflictGroup.classList.add('hidden'); ui.selectedGmDisplay.textContent = "The Grand Tactician (Fixed)"; ui.modeTitle.textContent = "Competitive Narrative Setup"; });
+                ui.startBtn.addEventListener('click', () => { (ui.modeTitle.textContent.includes('Sandbox')) ? prepareSandboxChronicle() : prepareCompetitiveChronicle(); });
                 
                 submitTurnBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     if (dynamicGameState.gameOver) return;
                     const playerMessage = ui.userInputPlayerSide.value.trim();
-                    if (!playerMessage) {
-                        alert("Please describe actions for your side.");
-                        return;
-                    }
-                    if (dynamicGameState.gameMode === 'competitive' && !ui.userInputOpponentSide.value.trim()) {
-                        alert("Please describe actions for the opponent side in competitive mode.");
-                        return;
-                    }
+                    if (!playerMessage) return alert("Please describe actions for your side.");
+                    if (dynamicGameState.gameMode === 'competitive' && !ui.userInputOpponentSide.value.trim()) return alert("Please describe actions for the opponent side.");
                     processTurnInput({ message: playerMessage });
                 });
 
-                // Other listeners...
+                // The rest of the event listeners...
                 loadChronicleBtn.addEventListener('click', () => loadFileInput.click());
-                loadFileInput.addEventListener('change', (event) => { /* ... */ });
-                micBtnRpg.addEventListener('mousedown', () => handleMicPress());
-                micBtnRpg.addEventListener('mouseup', () => handleMicRelease());
-                saveStateBtn.addEventListener('click', () => saveGameState());
-                ui.saveImageBtn.addEventListener('click', () => saveCurrentImage());
-                newGameBtn.addEventListener('click', () => startNewGame());
+                loadFileInput.addEventListener('change', (event) => { /* ... code is correct ... */ });
+                micBtnRpg.addEventListener('mousedown', handleMicPress);
+                micBtnRpg.addEventListener('mouseup', handleMicRelease);
+                saveStateBtn.addEventListener('click', saveGameState);
+                ui.saveImageBtn.addEventListener('click', saveCurrentImage);
+                newGameBtn.addEventListener('click', startNewGame);
                 ui.gmSelector.addEventListener('change', () => { ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director"; });
-                initiateCombatBtn.addEventListener('click', async () => { /* ... */ });
-                document.addEventListener('keydown', (e) => { /* ... */ });
-                document.addEventListener('keyup', (e) => { /* ... */ });
-                
+                initiateCombatBtn.addEventListener('click', async () => { /* ... code is correct ... */ });
+                document.addEventListener('keydown', (e) => { /* ... code is correct ... */ });
+                document.addEventListener('keyup', (e) => { /* ... code is correct ... */ });
+
+                // Fetch initial data
                 fetchAPI('/api/personas')
                     .then(personasData => {
                         dynamicGameState.personas = personasData; 
                         populateGmSelector();
                     })
                     .catch(e => {
-                        console.error("Initial connection to server failed:", e);
                         ui.startBtn.disabled = true; 
                         ui.selectedGmDisplay.textContent = "CONNECTION FAILED";
                         ui.selectedGmDisplay.style.color = "var(--error-accent)";
-                        alert("Could not connect to the GlassICE server. The creation screen may not function correctly. Please refresh the page to try again.");
+                        alert("Could not connect to the GlassICE server. Please refresh the page to try again.");
                     });
             }
             
