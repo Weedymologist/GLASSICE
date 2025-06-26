@@ -3,144 +3,529 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NIGHTFALL Operator Link</title>
+    <title>GlassICE // Interactive Chronicle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #02040a;
-            --text-color: #e0e1f0;
-            --primary-accent: #00c3ff;
-            --border-color: rgba(0, 195, 255, 0.3);
-            --font-heading: 'Orbitron', sans-serif; /* Placeholder, similar to your other project */
-            --font-body: 'Roboto Mono', monospace;   /* Placeholder */
-        }
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: var(--font-body);
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .container {
-            width: 95%;
-            height: 95%;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        header {
-            text-align: center;
-            font-family: var(--font-heading);
-            color: var(--primary-accent);
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .content {
-            flex-grow: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background-color: #000;
-        }
-        #controls { text-align: center; margin-top: 20px; }
-        #status { font-style: italic; opacity: 0.7; margin-top: 10px; }
-        button {
-            padding: 12px 30px;
-            background-color: transparent;
-            color: var(--primary-accent);
-            font-family: var(--font-heading);
-            cursor: pointer;
-            border: 2px solid var(--primary-accent);
-            font-size: 1.1em;
-            border-radius: 4px;
-            transition: all .2s ease;
-        }
-        button:hover:not(:disabled) {
-            background-color: var(--primary-accent);
-            color: var(--bg-color);
-        }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        :root{--bg-color:#02040a;--glass-bg:rgba(10,20,40,0.6);--border-color:rgba(0,195,255,0.3);--primary-glow:rgba(0,195,255,0.7);--text-color:#e0e1f0;--primary-accent:#00c3ff;--user-accent:#00ffaa;--system-accent:#ffff00;--error-accent:#ff4136;--opponent-color:#ff99ff;--font-heading:'Orbitron',sans-serif;--font-body:'Roboto Mono',monospace}
+        *{box-sizing:border-box;margin:0;padding:0}
+        
+        body{background-color:transparent;color:var(--text-color);font-family:var(--font-body);display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;overflow:hidden;}
+        
+        #background-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;background-color:var(--bg-color);background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,0.05) 1px,transparent 0);background-size:20px 20px;background-position:center;transition:background-image 1s ease-in-out;}
+        .image-cover { background-size: cover !important; }
+
+        .screen{width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center}
+        .screen.active{display:flex}
+        .hidden{display:none!important}
+        .hub-container{text-align:center;animation:fadeIn 1s ease-in-out;padding:20px}
+        .hub-header{margin-bottom:40px}
+        .hub-header h1{font-family:var(--font-heading);color:var(--primary-accent);letter-spacing:4px;text-shadow:0 0 10px var(--primary-glow)}
+        .hub-header h2{font-size:.9em;font-weight:400;color:var(--text-color);opacity:.7}
+        .mode-selection button{display:block;margin:20px auto;width:350px;padding:20px;font-size:1.2em}
+        .creation-container{width:100%;max-width:900px;background:var(--glass-bg);border:1px solid var(--border-color);border-radius:8px;padding:20px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 30px rgba(0,0,0,.5);animation:fadeIn 1s ease-in-out;max-height:100vh;overflow-y:auto}
+        .creation-header{text-align:center;margin-bottom:20px}
+        .creation-header h1{font-family:var(--font-heading);color:var(--primary-accent);letter-spacing:4px;text-shadow:0 0 10px var(--primary-glow);font-size:1.8em}
+        .creation-header h2{font-size:.9em;font-weight:400;color:var(--text-color);opacity:.7}
+        .creation-header h3#mode-title{font-size:1.2em;font-family:var(--font-body);color:var(--system-accent);margin-top:10px}
+        .form-group{margin-bottom:15px}
+        .form-group label{display:block;margin-bottom:8px;color:var(--primary-accent);font-weight:700;font-size:.95em}
+        textarea,select,input[type=text]{width:100%;padding:10px;background:rgba(0,0,0,.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-family:inherit;font-size:.95em;transition:all .2s ease;resize:vertical}
+        textarea:focus,select:focus,input[type=text]:focus{outline:0;border-color:var(--primary-accent);box-shadow:0 0 10px var(--primary-glow)}
+        select option{background:var(--bg-color);color:var(--text-color)}
+        .creation-footer{text-align:center;margin-top:20px}
+        .creation-dual-input{display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap}
+        .creation-dual-input>div{flex:1;min-width:unset;width:100%}
+        @media (min-width:480px){.creation-dual-input>div{min-width:250px}}
+        button{padding:10px 25px;background-color:transparent;color:var(--primary-accent);font-family:var(--font-heading);cursor:pointer;border:2px solid var(--primary-accent);font-size:1em;border-radius:4px;transition:all .2s ease;text-shadow:0 0 5px var(--primary-glow)}
+        button:hover:not(:disabled){background-color:var(--primary-accent);color:var(--bg-color);box-shadow:0 0 20px var(--primary-glow)}
+        button:disabled{opacity:.5;cursor:not-allowed}
+        #genesis-screen{position:relative;width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:130px}
+        #loading-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(5px);z-index:100;transition:opacity .3s ease-in-out}
+        #loading-overlay.hidden{opacity:0;pointer-events:none}
+        #loading-overlay .loader{border:4px solid var(--border-color);border-top:4px solid var(--primary-accent);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 10px}
+        #loading-overlay .loading-text{font-family:var(--font-heading);color:var(--system-accent);text-shadow:0 0 8px var(--system-accent);font-size:.9em}
+        .log-overlay{position:static;height:100%;width:100%;padding:20px;overflow-y:scroll;background:0 0;-webkit-mask-image:none;mask-image:none;pointer-events:auto;display:flex;flex-direction:column;justify-content:flex-end;font-size:.9em}
+        .log-overlay::-webkit-scrollbar{display:block;width:6px}
+        .log-overlay::-webkit-scrollbar-track{background:rgba(0,195,255,.1);border-radius:3px}
+        .log-overlay::-webkit-scrollbar-thumb{background:rgba(0,195,255,.5);border-radius:3px}
+        .log-entry{margin-bottom:10px;line-height:1.5;text-shadow:1px 1px 3px #000;background:rgba(0,0,0,.4);padding:8px;border-radius:5px}
+        .log-entry strong{font-weight:700;padding-right:8px;color:var(--primary-accent);display:inline}
+        .log-entry strong.player-side,.log-entry strong.user{color:var(--user-accent)}
+        .log-entry strong.opponent-side{color:var(--opponent-color)}
+        .log-entry strong span{color:var(--text-color)}
+        .log-entry strong.system-error{color:var(--error-accent)}
+        .log-entry strong.system-info{color:var(--system-accent)}
+        .log-entry span{white-space:pre-wrap}
+        #competitive-input-overlay{position:absolute;bottom:0;left:0;right:0;height:auto;background:0 0;backdrop-filter:none;flex-direction:column;justify-content:flex-end;padding:10px;align-items:center}
+        .input-modal-competitive{display:flex;gap:10px;width:100%;max-width:900px;padding:15px;background:var(--glass-bg);border:1px solid var(--border-color);border-radius:8px;flex-direction:column;box-shadow:0 0 30px rgba(0,0,0,.5)}
+        .input-modal-competitive>div{flex:none;width:100%;display:flex;flex-direction:column;gap:8px}
+        .input-modal-competitive h3{font-family:var(--font-heading);margin-bottom:5px;font-size:1.1em}
+        .chat-form{display:flex;flex-direction:column;gap:8px}
+        .chat-form textarea{height:80px;font-size:1em;resize:none}
+        .input-hint-competitive{text-align:center;color:rgba(255,255,255,.6);margin-top:10px;font-size:.8em}
+        .chat-form-buttons{display:flex;gap:8px;width:100%;justify-content:stretch}
+        .chat-form-buttons button{padding:10px 12px;font-size:1em;flex-grow:1}
+        .chat-form-buttons button.icon-button{width:auto; flex-grow:0; padding:10px; display:flex; align-items:center; gap: 5px; font-size: 1.2em; line-height:1}
+        #mic-btn-rpg.is-listening{background:var(--error-accent);color:var(--bg-color);animation:pulse-red 1s infinite}
+        #game-stats{color:var(--system-accent);font-size:.85em;margin-top:5px;text-align:center;opacity:.8}
+        .game-over-buttons{display:flex;justify-content:center;gap:15px;margin-top:15px;flex-wrap:wrap}
+        .game-over-buttons button{flex-grow:1;min-width:180px}
+        .sandbox-combat-actions{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--border-color);border-radius:4px;margin-top:10px}
+        .sandbox-combat-actions label{color:var(--system-accent);font-size:.9em}
+        .sandbox-combat-actions input{background:rgba(0,0,0,.2)}
+        .sandbox-combat-actions button{background-color:var(--system-accent);color:var(--bg-color);border:2px solid var(--system-accent);text-shadow:none;box-shadow:0 0 5px var(--system-accent)}
+        .sandbox-combat-actions button:hover:not(:disabled){background-color:transparent;color:var(--system-accent);box-shadow:0 0 10px var(--system-accent)}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+        @keyframes pulse-red{0%{box-shadow:0 0 0 0 rgba(255,65,54,.7)}70%{box-shadow:0 0 0 10px transparent}to{box-shadow:0 0 0 0 transparent}}
+        .hidden-file-input{display:none}
+        @media (min-width:768px){.creation-container{padding:40px}.creation-header h1{font-size:2.5em}.form-group label{font-size:1em}textarea,select,input[type=text]{padding:12px;font-size:1em}button{padding:12px 30px;font-size:1.1em}#genesis-screen{padding-bottom:150px}.log-overlay{padding:40px;font-size:1em}.log-overlay::-webkit-scrollbar{width:8px}.log-entry{margin-bottom:15px;padding:10px}.log-entry strong{padding-right:10px}#loading-overlay .loader{width:50px;height:50px}#loading-overlay .loading-text{font-size:1em}#competitive-input-overlay{padding:20px}.input-modal-competitive{padding:20px;flex-direction:row}.input-modal-competitive>div{flex:1;width:auto;gap:10px}.input-modal-competitive h3{font-size:1.2em}.chat-form{gap:10px}.chat-form textarea{height:100px;font-size:1.1em}.input-hint-competitive{margin-top:15px;font-size:.9em}.chat-form-buttons{gap:10px}.chat-form-buttons button{padding:12px 15px;font-size:1.1em}.chat-form-buttons button.icon-button{padding: 12px 15px;}}
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>OPERATOR LINK :: ACTIVE</h1>
-        </header>
-        <main class="content">
-            <video id="screen-feed" autoplay muted></video>
-        </main>
-        <div id="controls">
-            <button id="start-btn">Initiate Vision Link</button>
-            <p id="status">Status: Standby</p>
+    <div id="background-canvas" class="image-cover"></div>
+
+    <div id="hub-screen" class="screen active">
+        <div class="hub-container">
+            <header class="hub-header">
+                <h1>GlassICE</h1>
+                <h2>v27.0 // Maestro</h2>
+            </header>
+            <div class="mode-selection">
+                <button id="launch-sandbox-btn">Launch Sandbox Chronicle</button>
+                <button id="launch-competitive-btn">Launch Competitive Chronicle</button>
+                <button id="load-chronicle-btn">Load Saved Chronicle</button>
+                <input type="file" id="load-file-input" class="hidden-file-input" accept=".json">
+            </div>
+        </div>
+    </div>
+
+    <div id="genesis-screen" class="screen">
+        <div class="log-overlay" id="chat-log-rpg"></div>
+        <div id="loading-overlay" class="hidden">
+            <div class="loader"></div>
+            <p class="loading-text" id="loader-text-rpg">Loading...</p>
+        </div>
+    </div>
+
+    <div id="creation-screen-rpg" class="screen hidden">
+        <div class="creation-container">
+            <header class="creation-header">
+                <h2>Genesis Protocol</h2>
+                <h3 id="mode-title">Dynamic Narrative Setup</h3>
+            </header>
+            <main class="creation-form">
+                <section class="form-group">
+                    <label for="prompt-rpg">Describe the Game's Setting & Initial Conflict:</label>
+                    <textarea id="prompt-rpg" placeholder="A desolate, wind-swept plain where ancient ruins jut from the earth..."></textarea>
+                </section>
+                <div class="creation-dual-input">
+                    <section class="form-group">
+                        <label for="player-side-name-input">Your Side's Name:</label>
+                        <input type="text" id="player-side-name-input" placeholder="E.g., The Rebel Alliance, Godzilla, The Knights of Sol">
+                    </section>
+                    <section class="form-group" id="opponent-side-name-form-group">
+                        <label for="opponent-side-name-input">Opponent's Side Name (Competitive Only):</label>
+                        <input type="text" id="opponent-side-name-input" placeholder="E.g., The Galactic Empire, Dallas Cowboys, The Shadow Cult">
+                    </section>
+                </div>
+                <section class="form-group">
+                    <label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Your Side's Opening Strategy & Composition:</label>
+                    <textarea id="initial-player-side-prompt" placeholder="Your side's characters and their initial actions/strategy."></textarea>
+                </section>
+                <section class="form-group" id="initial-opponent-side-prompt-form-group">
+                    <label for="initial-opponent-side-prompt" style="color: var(--opponent-color);" id="initial-opponent-side-label">Opponent's Side Opening Strategy & Composition (Competitive Only):</label>
+                    <textarea id="initial-opponent-side-prompt" placeholder="Opponent's characters and their initial actions/strategy."></textarea>
+                </section>
+                
+                <section class="form-group" id="director-conflict-group">
+                    <label for="director-conflict-checkbox" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="director-conflict-checkbox" style="width: auto; height: 20px; margin-right: 10px;" checked>
+                        Allow Director to Initiate Conflict
+                    </label>
+                    <p style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">(Uncheck for a purely narrative, non-confrontational experience like story-building or slice-of-life roleplay.)</p>
+                </section>
+                
+                <section class="form-group" id="gm-selection-group">
+                    <label for="gm-selector">Select Director:</label>
+                    <select id="gm-selector"></select>
+                </section>
+                <section class="form-group">
+                    <label>Selected Director:</label>
+                    <p id="selected-gm-display" style="color: var(--primary-accent); font-family: var(--font-heading); font-size: 1.1em;"></p>
+                </section>
+            </main>
+            <footer class="creation-footer">
+                <button id="start-btn-rpg">Prepare Chronicle</button>
+            </footer>
+        </div>
+    </div>
+
+    <div id="competitive-input-overlay" class="hidden">
+        <h2 id="turn-status">Turn Start: Player's Actions</h2>
+        <p id="game-stats" class="hidden"></p>
+        <div class="input-modal-competitive">
+            <div class="player-side-input">
+                <h3 id="player-side-label" style="color: var(--user-accent);">Player Side: Player</h3>
+                <form id="chat-form-player-side" class="chat-form">
+                    <textarea id="user-input-player-side" placeholder="Describe your actions or your side's strategy..." autocomplete="off"></textarea>
+                    <div class="chat-form-buttons">
+                        <button type="button" id="save-state-btn" class="icon-button" title="Save Game State"><span>💾</span> Save</button>
+                        <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image"><span>🖼️</span> Save Image</button>
+                        <button type="button" id="mic-btn-rpg" class="icon-button" title="Hold to Record Voice"><span>🎤</span></button>
+                        <button type="submit" id="submit-turn-btn">Submit Turn</button>
+                    </div>
+                </form>
+            </div>
+            <div class="opponent-side-input hidden" id="opponent-input-container">
+                <h3 id="opponent-side-label" style="color: var(--opponent-color);">Opponent Side: Opponent</h3>
+                <form id="chat-form-opponent-side" class="chat-form">
+                    <textarea id="user-input-opponent-side" placeholder="Describe Opponent's actions (for competitive play only)..." autocomplete="off"></textarea>
+                </form>
+            </div>
+            <div class="sandbox-combat-actions hidden" id="sandbox-combat-actions-container">
+                <h3>Initiate Combat</h3>
+                <label for="sandbox-opponent-description">Who/What do you want to fight?</label>
+                <input type="text" id="sandbox-opponent-description" placeholder="E.g., A pack of dire wolves, The rogue AI, A rival adventurer">
+                <button id="initiate-combat-btn">Initiate Combat</button>
+            </div>
+        </div>
+        <p class="input-hint-competitive" id="input-hint-text">Hold SPACE to Speak (Player Side) | Tap SPACE to Type (Player Side)</p>
+        <div class="game-over-buttons hidden">
+            <button id="new-game-btn">Start New Chronicle</button>
         </div>
     </div>
 
     <script>
-        // This script runs in the renderer process (the window itself)
-        const { ipcRenderer } = require('electron');
+        document.addEventListener('DOMContentLoaded', () => {
+            const API_URL = "";
 
-        const startBtn = document.getElementById('start-btn');
-        const videoElement = document.getElementById('screen-feed');
-        const statusElement = document.getElementById('status');
+            const hubScreen = document.getElementById('hub-screen');
+            const genesisScreen = document.getElementById('genesis-screen');
+            const creationScreen = document.getElementById('creation-screen-rpg');
 
-        startBtn.addEventListener('click', async () => {
-            statusElement.textContent = 'Status: Querying sources...';
-            startBtn.disabled = true;
+            const launchSandboxBtn = document.getElementById('launch-sandbox-btn');
+            const launchCompetitiveBtn = document.getElementById('launch-competitive-btn');
+            const loadChronicleBtn = document.getElementById('load-chronicle-btn');
+            const loadFileInput = document.getElementById('load-file-input');
 
-            try {
-                // 1. Ask the main process for all available screen/window sources
-                const sources = await ipcRenderer.invoke('get-screen-sources');
+            let dynamicGameState = {
+                currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [], turnPhase: 'player_side_input',
+                playerSideInputBuffer: '', opponentSideInputBuffer: '', gameMode: 'sandbox', isListening: false, gmPersonaId: null, currentRound: 0,
+                playerHP: 0, opponentHP: 0, gameOver: false, sandboxOpponentName: null, latestImageB64: null
+            };
 
-                // For simplicity, we'll auto-select the first available screen.
-                // In the future, we can build a UI to let the user choose.
-                const primaryScreen = sources.find(source => source.id.startsWith('screen:'));
-                
-                if (!primaryScreen) {
-                    throw new Error("No primary screen source could be found.");
+            let mediaRecorder, audioChunks = [], spacebarTimer, isHoldingSpace = false;
+
+            const competitiveInputOverlay = document.getElementById('competitive-input-overlay');
+            const turnStatus = document.getElementById('turn-status');
+            const userInputPlayerSide = document.getElementById('user-input-player-side');
+            const userInputOpponentSide = document.getElementById('user-input-opponent-side');
+            const submitTurnBtn = document.getElementById('submit-turn-btn');
+            const playerSideLabel = document.getElementById('player-side-label');
+            const opponentSideLabel = document.getElementById('opponent-side-label');
+            const opponentInputContainer = document.getElementById('opponent-input-container');
+            const micBtnRpg = document.getElementById('mic-btn-rpg');
+            const saveStateBtn = document.getElementById('save-state-btn');
+            const gameStatsDisplay = document.getElementById('game-stats');
+            const gameOverButtonsContainer = document.querySelector('.game-over-buttons');
+            const newGameBtn = document.getElementById('new-game-btn');
+            const sandboxCombatActionsContainer = document.getElementById('sandbox-combat-actions-container');
+            const sandboxOpponentDescriptionInput = document.getElementById('sandbox-opponent-description');
+            const initiateCombatBtn = document.getElementById('initiate-combat-btn');
+            const inputHintText = document.getElementById('input-hint-text');
+            const directorConflictGroup = document.getElementById('director-conflict-group');
+
+            let ui = {};
+
+            function updateInputState() {
+                const isCombatMode = dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat';
+                const isSandboxOpenEnded = dynamicGameState.gameMode === 'sandbox';
+
+                playerSideLabel.textContent = `${dynamicGameState.playerSideName}:`;
+                opponentSideLabel.textContent = `${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName}:`;
+                opponentInputContainer.classList.toggle('hidden', dynamicGameState.gameMode !== 'competitive');
+                sandboxCombatActionsContainer.classList.toggle('hidden', !isSandboxOpenEnded);
+                micBtnRpg.classList.toggle('hidden', dynamicGameState.gameMode === 'competitive');
+                gameStatsDisplay.classList.toggle('hidden', !isCombatMode);
+                if (isCombatMode) {
+                    gameStatsDisplay.textContent = `Round: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP}`;
                 }
+                if (isSandboxOpenEnded) { inputHintText.textContent = "Hold SPACE to Speak | Tap SPACE to Type"; }
+                else if (isCombatMode) { inputHintText.textContent = "Enter actions for your side" + (dynamicGameState.gameMode === 'competitive' ? " and the opponent." : "."); }
+                
+                if (dynamicGameState.gameOver) {
+                    turnStatus.textContent = "Chronicle Concluded!";
+                    userInputPlayerSide.disabled = true; userInputOpponentSide.disabled = true; submitTurnBtn.disabled = true; micBtnRpg.disabled = true;
+                    saveStateBtn.disabled = false;
+                    ui.saveImageBtn.disabled = !dynamicGameState.latestImageB64;
+                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
+                    gameOverButtonsContainer.classList.remove('hidden');
+                    return;
+                }
+                gameOverButtonsContainer.classList.add('hidden');
+                switch (dynamicGameState.turnPhase) {
+                    case 'player_side_input':
+                        userInputPlayerSide.disabled = false; userInputOpponentSide.disabled = dynamicGameState.gameMode !== 'competitive';
+                        submitTurnBtn.disabled = false; micBtnRpg.disabled = false; saveStateBtn.disabled = false;
+                        ui.saveImageBtn.disabled = !dynamicGameState.latestImageB64;
+                        userInputPlayerSide.focus();
+                        break;
+                    case 'adjudicating':
+                        userInputPlayerSide.disabled = true; userInputOpponentSide.disabled = true;
+                        submitTurnBtn.disabled = true; micBtnRpg.disabled = true; saveStateBtn.disabled = true;
+                        ui.saveImageBtn.disabled = true;
+                        break;
+                }
+            }
+            
+            const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); ui.chatLog.scrollTop = ui.chatLog.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
+            const playAudio = (b64) => new Promise(resolve => { if (dynamicGameState.currentAudio) { dynamicGameState.currentAudio.pause(); } if (b64) { dynamicGameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); dynamicGameState.currentAudio.play().catch(e => resolve()); dynamicGameState.currentAudio.onended = () => resolve(); } else { resolve(); } });
+            const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLog.appendChild(entryDiv); return typewriter(contentSpan, content || ''); };
+            const setLoading = (isLoading, message = "Processing...") => { ui.loaderText.textContent = message; ui.loaderOverlay.classList.toggle('hidden', !isLoading); };
+            
+            const updateBackgroundImage = (b64_image) => {
+                if (b64_image) {
+                    ui.backgroundCanvas.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`;
+                    dynamicGameState.latestImageB64 = b64_image;
+                    if(ui.saveImageBtn) ui.saveImageBtn.disabled = false;
+                }
+            };
 
-                statusElement.textContent = `Status: Found source '${primaryScreen.name}'. Establishing link...`;
+            const saveCurrentImage = () => {
+                if (!dynamicGameState.latestImageB64) {
+                    addLog("There is no image to save yet.", "System", "system-info");
+                    return;
+                }
+                const a = document.createElement('a');
+                a.href = `data:image/jpeg;base64,${dynamicGameState.latestImageB64}`;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                a.download = `GlassICE-Chronicle-${timestamp}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
 
-                // 2. Use the standard Web API to get a media stream, but with Electron's magic ID
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: primaryScreen.id,
-                            minWidth: 1280,
-                            maxWidth: 1920,
-                            minHeight: 720,
-                            maxHeight: 1080
+            async function fetchAPI(endpoint, options = {}) { try { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error); } return response.json(); } catch (error) { console.error(`API Error on ${endpoint}:`, error); addLog(`Server communication failed: ${error.message}.`, "System", "system-error"); throw error; } }
+            
+            const toggleCompetitiveInputOverlay = (show) => { competitiveInputOverlay.classList.toggle('hidden', !show); if (show) updateInputState(); };
+            const handleMicPress = () => { if (dynamicGameState.isListening || dynamicGameState.gameOver) return; navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { dynamicGameState.isListening = true; micBtnRpg.classList.add('is-listening'); mediaRecorder = new MediaRecorder(stream); audioChunks = []; mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data)); mediaRecorder.addEventListener("stop", () => { const audioBlob = new Blob(audioChunks); const formData = new FormData(); formData.append('audio', audioBlob); processTurnInput({ formData }); stream.getTracks().forEach(track => track.stop()); }); mediaRecorder.start(); }).catch(err => alert("Microphone access denied.")); };
+            const handleMicRelease = () => { if (!dynamicGameState.isListening || !mediaRecorder || mediaRecorder.state !== "recording") return; mediaRecorder.stop(); micBtnRpg.classList.remove('is-listening'); dynamicGameState.isListening = false; };
+
+            const processTurnInput = async ({ message, formData }) => {
+                if (dynamicGameState.gameOver) return;
+                
+                toggleCompetitiveInputOverlay(false);
+                dynamicGameState.turnPhase = 'adjudicating';
+                updateInputState();
+
+                try {
+                    const isVoiceInput = !!formData;
+                    if (message) {
+                        dynamicGameState.playerSideInputBuffer = message;
+                        await addLog(message, dynamicGameState.playerSideName, 'player-side');
+                        userInputPlayerSide.value = '';
+                    } else {
+                        dynamicGameState.playerSideInputBuffer = "... (Speaking)";
+                        await addLog("... (Speaking)", dynamicGameState.playerSideName, 'system-info');
+                    }
+
+                    if (dynamicGameState.gameMode === 'competitive') {
+                        dynamicGameState.opponentSideInputBuffer = userInputOpponentSide.value.trim();
+                        if (dynamicGameState.opponentSideInputBuffer) {
+                            await addLog(dynamicGameState.opponentSideInputBuffer, dynamicGameState.opponentSideName, 'opponent-side');
+                        }
+                        userInputOpponentSide.value = '';
+                    } else {
+                        dynamicGameState.opponentSideInputBuffer = '';
+                    }
+
+                    setLoading(true, isVoiceInput ? "Transcribing Voice..." : "Processing Actions...");
+
+                    const endpoint = isVoiceInput ? `/api/dynamic-narrative/${dynamicGameState.currentSceneId}/turn/voice` : `/api/dynamic-narrative/${dynamicGameState.currentSceneId}/turn`;
+                    const payload = isVoiceInput ? formData : JSON.stringify({ playerSideMessage: dynamicGameState.playerSideInputBuffer, opponentSideMessage: dynamicGameState.opponentSideInputBuffer });
+                    const options = isVoiceInput ? { method: 'POST', body: payload } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
+                    const data = await fetchAPI(endpoint, options);
+
+                    dynamicGameState.currentRound = data.currentRound;
+                    dynamicGameState.playerHP = data.playerHP;
+                    dynamicGameState.opponentHP = data.opponentHP;
+                    dynamicGameState.gameOver = data.gameOver;
+                    dynamicGameState.gameMode = data.gameMode;
+                    dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                    
+                    updateBackgroundImage(data.response.image_b64);
+
+                    if (isVoiceInput && data.transcribedMessage) {
+                        if (ui.chatLog.lastChild && ui.chatLog.lastChild.querySelector('strong.system-info')) {
+                            ui.chatLog.lastChild.remove();
+                        }
+                        await addLog(data.transcribedMessage, dynamicGameState.playerSideName, 'player-side');
+                    }
+                    
+                    setLoading(false);
+                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await Promise.all([
+                        textDisplayPromise,
+                        playAudio(data.response.audio_base_64)
+                    ]);
+
+                    userInputPlayerSide.value = '';
+                    userInputOpponentSide.value = '';
+                    dynamicGameState.playerSideInputBuffer = '';
+                    dynamicGameState.opponentSideInputBuffer = '';
+
+                    if (dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat') {
+                        if (dynamicGameState.gameOver) {
+                            await addLog(`Game Over! ${data.finalReason || "The conflict reached a decisive end."}`, "System", "system-error");
+                        } else {
+                            let turnPrompt = (data.damageDealtToPlayer > 0 || data.damageDealtToOpponent > 0) ? `Round ${data.currentRound} Result: You dealt ${data.damageDealtToOpponent} damage and took ${data.damageDealtToPlayer} damage.` : `Round ${data.currentRound} Result: A stalemate. No damage was dealt.`;
+                            await addLog(turnPrompt, "System", "system-info");
                         }
                     }
+                } catch (e) {
+                    console.error("Error during turn processing, unlocking UI.", e);
+                } finally {
+                    setLoading(false);
+                    dynamicGameState.turnPhase = 'player_side_input';
+                    toggleCompetitiveInputOverlay(true); 
+                }
+            };
+
+            const prepareSandboxChronicle = () => {
+                const directorCanInitiateCombat = document.getElementById('director-conflict-checkbox').checked;
+                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), opponentSideName: '', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: '', selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox', directorCanInitiateCombat: directorCanInitiateCombat };
+                if (!body.gameSettingPrompt || !body.playerSideName || !body.initialPlayerSidePrompt || !body.selectedGmPersonaId) { alert("Please complete all required fields and select a Director."); return; }
+                dynamicGameState.playerSideName = body.playerSideName;
+                startChronicle(body);
+            };
+            const prepareCompetitiveChronicle = () => {
+                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), opponentSideName: ui.opponentSideNameInput.value.trim(), initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), selectedGmPersonaId: 'Tactician_GM', gameMode: 'competitive', directorCanInitiateCombat: true };
+                if (!body.gameSettingPrompt || !body.playerSideName || !body.opponentSideName || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) { alert("Please complete all required fields."); return; }
+                dynamicGameState.playerSideName = body.playerSideName; dynamicGameState.opponentSideName = body.opponentSideName;
+                startChronicle(body);
+            };
+
+            const startChronicle = async (body) => {
+                setLoading(true, "Preparing Chronicle...");
+                try {
+                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    dynamicGameState.currentSceneId = data.sceneId; dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound;
+                    dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.gameOver = data.gameOver;
+                    
+                    updateBackgroundImage(data.response.image_b64);
+                    
+                    creationScreen.classList.remove('active'); genesisScreen.classList.add('active');
+                    setLoading(false);
+                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await Promise.all([
+                        textDisplayPromise,
+                        playAudio(data.response.audio_base_64)
+                    ]);
+                    toggleCompetitiveInputOverlay(true); dynamicGameState.turnPhase = 'player_side_input'; updateInputState();
+                } catch (e) { setLoading(false); }
+            };
+
+            const saveGameState = async () => {
+                if (!dynamicGameState.currentSceneId) { addLog("No active chronicle to save.", "System", "system-info"); return; }
+                addLog("Preparing save file...", "System", "system-info");
+                try {
+                    const gameState = await fetchAPI(`/api/adventure/${dynamicGameState.currentSceneId}/state/save`, { method: 'POST' });
+                    const stateJson = JSON.stringify(gameState, null, 2);
+                    const blob = new Blob([stateJson], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+                    a.download = `GlassICE_Save_${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                    addLog(`Chronicle state saved as ${a.download}`, "System", "system-info");
+                } catch (e) { /* Error already logged by fetchAPI */ }
+            };
+            
+            const resumeGameFromState = async (loadedState) => {
+                dynamicGameState.currentSceneId = loadedState.sceneId; dynamicGameState.playerSideName = loadedState.player_side_name; dynamicGameState.opponentSideName = loadedState.opponent_side_name; dynamicGameState.gameMode = loadedState.game_mode; dynamicGameState.gmPersonaId = loadedState.gm_persona_id; dynamicGameState.currentRound = loadedState.round_number; dynamicGameState.playerHP = loadedState.player_hp; dynamicGameState.opponentHP = loadedState.opponent_hp; dynamicGameState.gameOver = false; dynamicGameState.sandboxOpponentName = loadedState.sandbox_opponent_details;
+                hubScreen.classList.remove('active'); creationScreen.classList.add('hidden'); genesisScreen.classList.add('active');
+                ui.chatLog.innerHTML = ''; addLog(`--- Chronicle Resumed from Save ---`, "System", "system-info");
+                const history = JSON.parse(loadedState.chat_history);
+                const gmName = dynamicGameState.personas.find(p => p.actor_id === dynamicGameState.gmPersonaId)?.name || 'Director';
+                for (const entry of history) {
+                    const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry';
+                    if (entry.role === 'assistant') { entryDiv.innerHTML = `<strong class="gm">${gmName}:</strong> <span>${entry.content.narration}</span>`; }
+                    else { const content = entry.content; let author = 'User'; let authorClass = 'user'; const playerPrefix = `${dynamicGameState.playerSideName.toUpperCase()} ACTION`; const opponentPrefix = `${(dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName).toUpperCase()} ACTIONS`; if (content.startsWith(playerPrefix)) { author = dynamicGameState.playerSideName; authorClass = 'player-side'; } else if (content.startsWith(opponentPrefix)) { author = (dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName); authorClass = 'opponent-side'; } entryDiv.innerHTML = `<strong class="${authorClass}">${author}:</strong> <span>${content.replace(/<[^>]*>/g, "")}</span>`; }
+                    ui.chatLog.appendChild(entryDiv);
+                }
+                ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
+                dynamicGameState.turnPhase = 'player_side_input'; toggleCompetitiveInputOverlay(true); addLog("Your turn. What do you do next?", "System", "system-info");
+            };
+            
+            const startNewGame = () => {
+                dynamicGameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: dynamicGameState.personas, turnPhase: 'player_side_input', playerSideInputBuffer: '', opponentSideInputBuffer: '', gameMode: 'sandbox', isListening: false, gmPersonaId: null, currentRound: 0, playerHP: 0, opponentHP: 0, gameOver: false, sandboxOpponentName: null, latestImageB64: null };
+                ui.chatLog.innerHTML = '';
+                genesisScreen.classList.remove('active'); competitiveInputOverlay.classList.add('hidden'); creationScreen.classList.remove('active'); creationScreen.classList.add('hidden'); hubScreen.classList.add('active');
+                userInputPlayerSide.value = ''; userInputOpponentSide.value = ''; sandboxOpponentDescriptionInput.value = '';
+                ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Dynamic Narrative Setup";
+                populateGmSelector();
+            };
+
+            async function populateGmSelector() {
+                ui.gmSelector.innerHTML = '';
+                const gmPersonas = dynamicGameState.personas.filter(p => p.role === 'gm');
+                if (gmPersonas.length === 0) { ui.selectedGmDisplay.textContent = "ERROR: NO DIRECTORS FOUND"; return; }
+                gmPersonas.forEach(persona => { const option = document.createElement('option'); option.value = persona.actor_id; option.textContent = persona.name; ui.gmSelector.appendChild(option); });
+                const conductorExists = gmPersonas.some(p => p.actor_id === 'The_Conductor');
+                if (conductorExists) { ui.gmSelector.value = 'The_Conductor'; } else if (gmPersonas.length > 0) { ui.gmSelector.value = gmPersonas[0].actor_id; }
+                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director";
+            }
+            
+            async function initializeUIAndData() {
+                ui = { backgroundCanvas: document.getElementById('background-canvas'), saveImageBtn: document.getElementById('save-image-btn'), chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
+
+                // THIS IS THE FIX: Attach listeners immediately so the UI is always responsive.
+                launchSandboxBtn.addEventListener('click', () => { hubScreen.classList.remove('active'); creationScreen.classList.remove('hidden'); creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.add('hidden'); ui.initialOpponentSidePromptFormGroup.classList.add('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Sandbox Narrative Setup"; ui.startBtn.onclick = prepareSandboxChronicle; });
+                launchCompetitiveBtn.addEventListener('click', () => { hubScreen.classList.remove('active'); creationScreen.classList.remove('hidden'); creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.add('hidden'); directorConflictGroup.classList.add('hidden'); ui.selectedGmDisplay.textContent = "The Grand Tactician (Fixed)"; ui.modeTitle.textContent = "Competitive Narrative Setup"; ui.startBtn.onclick = prepareCompetitiveChronicle; });
+                loadChronicleBtn.addEventListener('click', () => loadFileInput.click());
+                loadFileInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (e) => { try { const loadedJson = JSON.parse(e.target.result); setLoading(true, "Loading Chronicle..."); const newSceneData = await fetchAPI('/api/adventure/state/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadedJson) }); await resumeGameFromState(newSceneData); setLoading(false); } catch (err) { setLoading(false); alert('Failed to load save file.'); } }; reader.readAsText(file); event.target.value = ''; });
+                micBtnRpg.addEventListener('mousedown', handleMicPress);
+                micBtnRpg.addEventListener('mouseup', handleMicRelease);
+                saveStateBtn.addEventListener('click', saveGameState);
+                ui.saveImageBtn.addEventListener('click', saveCurrentImage);
+                newGameBtn.addEventListener('click', startNewGame);
+                ui.gmSelector.addEventListener('change', () => { ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director"; });
+
+                try { 
+                    const personasData = await fetchAPI('/api/personas'); 
+                    dynamicGameState.personas = personasData; 
+                    populateGmSelector(); 
+                } catch (e) { 
+                    ui.startBtn.disabled = true; 
+                    ui.selectedGmDisplay.textContent = "CONNECTION FAILED";
+                    ui.selectedGmDisplay.style.color = "var(--error-accent)";
+                }
+
+                initiateCombatBtn.addEventListener('click', async () => {
+                    if (!sandboxOpponentDescriptionInput.value.trim()) { alert("Please describe who/what you want to fight."); return; }
+                    setLoading(true, `Preparing for combat...`);
+                    try {
+                        const data = await fetchAPI(`/api/dynamic-narrative/${dynamicGameState.currentSceneId}/initiate-sandbox-combat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ opponentDescription: sandboxOpponentDescriptionInput.value.trim() }) });
+                        dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound; dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                        
+                        updateBackgroundImage(data.response.image_b64);
+
+                        setLoading(false);
+                        const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                        await Promise.all([
+                            textDisplayPromise,
+                            playAudio(data.response.audio_base_64)
+                        ]);
+                        toggleCompetitiveInputOverlay(true); dynamicGameState.turnPhase = 'player_side_input'; updateInputState(); sandboxOpponentDescriptionInput.value = '';
+                    } catch (e) { setLoading(false); }
                 });
 
-                // 3. Attach the live stream to our video element
-                videoElement.srcObject = stream;
-                videoElement.onloadedmetadata = () => videoElement.play();
-                statusElement.textContent = 'Status: Vision Link Active.';
-                startBtn.textContent = 'Link Established';
-
-            } catch (error) {
-                console.error('Error starting screen capture:', error);
-                statusElement.textContent = `Error: ${error.message}`;
-                startBtn.disabled = false;
+                submitTurnBtn.addEventListener('click', (e) => { e.preventDefault(); if (dynamicGameState.gameOver) return; const playerMessage = userInputPlayerSide.value.trim(); const opponentMessage = userInputOpponentSide.value.trim(); if (!playerMessage || (dynamicGameState.gameMode === 'competitive' && !opponentMessage)) { alert("Please describe actions for all required sides."); return; } processTurnInput({ message: playerMessage }); });
+                document.addEventListener('keydown', (e) => { if (genesisScreen.classList.contains('active') && e.code === 'Space' && !isHoldingSpace && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT' && dynamicGameState.turnPhase === 'player_side_input' && !dynamicGameState.gameOver && dynamicGameState.gameMode !== 'competitive') { e.preventDefault(); isHoldingSpace = true; spacebarTimer = setTimeout(() => { handleMicPress(); toggleCompetitiveInputOverlay(false); }, 250); } });
+                document.addEventListener('keyup', (e) => { if (genesisScreen.classList.contains('active') && e.code === 'Space' && isHoldingSpace) { clearTimeout(spacebarTimer); if (dynamicGameState.isListening) { handleMicRelease(); } else if (!dynamicGameState.gameOver) { toggleCompetitiveInputOverlay(true); } isHoldingSpace = false; } });
+                document.addEventListener('keydown', (e) => { if (e.code === 'Escape' && !competitiveInputOverlay.classList.contains('hidden') && dynamicGameState.turnPhase !== 'adjudicating' && !dynamicGameState.gameOver) { toggleCompetitiveInputOverlay(false); } });
             }
+            initializeUIAndData();
         });
     </script>
 </body>
