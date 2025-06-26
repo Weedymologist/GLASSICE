@@ -319,7 +319,6 @@ async function loadMods() { /* ... */ }
 async function loadAesthetics() { /* ... */ }
 async function generateSpeech(text, voice = "shimmer") { if (!text) return null; try { const cleanText = text.replace(/<[^>]*>/g, ''); const ttsResponse = await openai.audio.speech.create({ model: "tts-1-hd", voice: voice, input: cleanText }); const buffer = Buffer.from(await ttsResponse.arrayBuffer()); return buffer.toString('base64'); } catch (error) { console.error("[AI-TTS ERROR] Speech Generation Error:", error); return null; } }
 
-// --- MODIFIED FUNCTION TO BE FAULT-TOLERANT ---
 async function generateImage(shotDescription) {
     if (!shotDescription) {
         console.log("[AI-IMAGE] No shot description provided, skipping image generation.");
@@ -331,13 +330,12 @@ async function generateImage(shotDescription) {
             model: "dall-e-3",
             prompt: `digital painting, cinematic lighting, high detail, evocative: ${shotDescription}`,
             n: 1,
-            size: "1024x1024",
+            size: "1792x1024", // CHANGED to widescreen
             response_format: "b64_json",
         });
         console.log("[AI-IMAGE] DALL-E image generation successful.");
         return response.data[0].b64_json;
     } catch (error) {
-        // This is the fix: Log the error but don't crash the server. Return null instead.
         console.error("[AI-IMAGE ERROR] DALL-E Image Generation Failed (likely a safety filter trigger):", error.message);
         return null; 
     }
