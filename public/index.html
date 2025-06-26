@@ -1,215 +1,330 @@
-// P.A.N.E. GLASS - v27.0 ("Maestro") - Interactive Chronicle Engine (ICE) - STABLE DIFFUSION INTEGRATION
-const express = require('express');
-const cors = require('cors');
-const { createServer } = require('http');
-const dotenv = require('dotenv');
-const Database = require('better-sqlite3');
-const fs = require('fs/promises');
-const fsActual = require('fs');
-const path = require('path');
-const fileUpload = require('express-fileupload');
-const OpenAI = require('openai');
-const fetch = require('node-fetch');
-const FormData = require('form-data');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlassICE // Interactive Chronicle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg-color:#02040a;--glass-bg:rgba(10,20,40,0.6);--border-color:rgba(0,195,255,0.3);--primary-glow:rgba(0,195,255,0.7);--text-color:#e0e1f0;--primary-accent:#00c3ff;--user-accent:#00ffaa;--system-accent:#ffff00;--error-accent:#ff4136;--opponent-color:#ff99ff;--font-heading:'Orbitron',sans-serif;--font-body:'Roboto Mono',monospace}
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{background-color:transparent;color:var(--text-color);font-family:var(--font-body);display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;overflow:hidden;}
+        #background-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;background-color:var(--bg-color);background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,0.05) 1px,transparent 0);background-size:20px 20px;background-position:center;transition:background-image 1s ease-in-out;}
+        .image-cover { background-size: cover !important; }
+        .screen{width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center}
+        .screen.active{display:flex}
+        .hidden{display:none!important}
+        .hub-container{text-align:center;animation:fadeIn 1s ease-in-out;padding:20px}
+        .hub-header{margin-bottom:40px}
+        .hub-header h1{font-family:var(--font-heading);color:var(--primary-accent);letter-spacing:4px;text-shadow:0 0 10px var(--primary-glow)}
+        .hub-header h2{font-size:.9em;font-weight:400;color:var(--text-color);opacity:.7}
+        .mode-selection button{display:block;margin:20px auto;width:350px;padding:20px;font-size:1.2em}
+        .creation-container{width:100%;max-width:900px;background:var(--glass-bg);border:1px solid var(--border-color);border-radius:8px;padding:20px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 30px rgba(0,0,0,.5);animation:fadeIn 1s ease-in-out;max-height:100vh;overflow-y:auto}
+        .creation-header{text-align:center;margin-bottom:20px}
+        .form-group{margin-bottom:15px}
+        .form-group label{display:block;margin-bottom:8px;color:var(--primary-accent);font-weight:700}
+        textarea,select,input[type=text]{width:100%;padding:10px;background:rgba(0,0,0,.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-family:inherit;font-size:.95em;resize:vertical}
+        .creation-footer{text-align:center;margin-top:20px}
+        button{padding:10px 25px;background-color:transparent;color:var(--primary-accent);font-family:var(--font-heading);cursor:pointer;border:2px solid var(--primary-accent);font-size:1em;border-radius:4px;transition:all .2s ease;text-shadow:0 0 5px var(--primary-glow)}
+        button:hover:not(:disabled){background-color:var(--primary-accent);color:var(--bg-color);box-shadow:0 0 20px var(--primary-glow)}
+        button:disabled{opacity:.5;cursor:not-allowed}
+        #genesis-screen{position:relative;width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:150px}
+        #loading-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(5px);}
+        #loading-overlay .loader{border:4px solid var(--border-color);border-top:4px solid var(--primary-accent);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin-bottom:10px}
+        .log-overlay{position:static;height:100%;width:100%;padding:20px;overflow-y:scroll;display:flex;flex-direction:column;justify-content:flex-end}
+        .log-entry{margin-bottom:10px;line-height:1.5;background:rgba(0,0,0,.4);padding:8px;border-radius:5px}
+        .log-entry strong{font-weight:700;padding-right:8px;color:var(--primary-accent);}
+        .log-entry strong.player-side{color:var(--user-accent)}
+        .log-entry strong.opponent-side{color:var(--opponent-color)}
+        .log-entry strong.system-info{color:var(--system-accent)}
+        #competitive-input-overlay{position:absolute;bottom:0;left:0;right:0;padding:10px;display:flex;flex-direction:column;align-items:center;}
+        .input-modal-competitive{display:flex;gap:10px;width:100%;max-width:900px;padding:15px;background:var(--glass-bg);border:1px solid var(--border-color);border-radius:8px;flex-direction:column;}
+        .chat-form textarea{height:80px;font-size:1em;}
+        .chat-form-buttons{display:flex;gap:8px;width:100%;justify-content:stretch}
+        .chat-form-buttons button.icon-button{width:auto; flex-grow:0; padding:10px; display:flex; align-items:center; gap: 5px;}
+        .sandbox-combat-actions{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--border-color);border-radius:4px;margin-top:10px}
+        @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    </style>
+</head>
+<body>
+    <div id="background-canvas" class="image-cover"></div>
+    <div id="hub-screen" class="screen active">
+        <div class="hub-container">
+            <header class="hub-header">
+                <h1>GlassICE</h1>
+                <h2>v27.0 // Maestro</h2>
+            </header>
+            <div class="mode-selection">
+                <button id="launch-sandbox-btn">Launch Sandbox Chronicle</button>
+                <button id="launch-competitive-btn">Launch Competitive Chronicle</button>
+                <button id="load-chronicle-btn">Load Saved Chronicle</button>
+                <input type="file" id="load-file-input" class="hidden-file-input" accept=".json">
+            </div>
+        </div>
+    </div>
+    <div id="genesis-screen" class="screen">
+        <div class="log-overlay" id="chat-log-rpg"></div>
+        <div id="loading-overlay" class="hidden">
+            <div class="loader"></div>
+            <p class="loading-text" id="loader-text-rpg">Loading...</p>
+        </div>
+    </div>
+    <div id="creation-screen-rpg" class="screen hidden">
+        <div class="creation-container">
+            <header class="creation-header">
+                <h3 id="mode-title">Dynamic Narrative Setup</h3>
+            </header>
+            <main class="creation-form">
+                <section class="form-group">
+                    <label for="prompt-rpg">Describe the Game's Setting & Initial Conflict:</label>
+                    <textarea id="prompt-rpg" placeholder="A desolate, wind-swept plain where ancient ruins jut from the earth..."></textarea>
+                </section>
+                <div class="creation-dual-input">
+                    <section class="form-group">
+                        <label for="player-side-name-input">Your Side's Name:</label>
+                        <input type="text" id="player-side-name-input" placeholder="E.g., The Rebel Alliance, Godzilla, The Knights of Sol">
+                    </section>
+                    <section class="form-group" id="opponent-side-name-form-group">
+                        <label for="opponent-side-name-input">Opponent's Side Name (Competitive Only):</label>
+                        <input type="text" id="opponent-side-name-input" placeholder="E.g., The Galactic Empire, Dallas Cowboys, The Shadow Cult">
+                    </section>
+                </div>
+                <section class="form-group">
+                    <label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Your Side's Opening Strategy & Composition:</label>
+                    <textarea id="initial-player-side-prompt" placeholder="Your side's characters and their initial actions/strategy."></textarea>
+                </section>
+                <section class="form-group" id="initial-opponent-side-prompt-form-group">
+                    <label for="initial-opponent-side-prompt" style="color: var(--opponent-color);" id="initial-opponent-side-label">Opponent's Side Opening Strategy & Composition (Competitive Only):</label>
+                    <textarea id="initial-opponent-side-prompt" placeholder="Opponent's characters and their initial actions/strategy."></textarea>
+                </section>
+                <section class="form-group" id="director-conflict-group">
+                    <label for="director-conflict-checkbox" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="director-conflict-checkbox" style="width: auto; height: 20px; margin-right: 10px;" checked>
+                        Allow Director to Initiate Conflict
+                    </label>
+                </section>
+                <section class="form-group" id="gm-selection-group">
+                    <label for="gm-selector">Select Director:</label>
+                    <select id="gm-selector"></select>
+                </section>
+            </main>
+            <footer class="creation-footer">
+                <button id="start-btn-rpg">Prepare Chronicle</button>
+            </footer>
+        </div>
+    </div>
+    <div id="competitive-input-overlay" class="hidden">
+        <h2 id="turn-status">Turn Start: Player's Actions</h2>
+        <p id="game-stats" class="hidden"></p>
+        <div class="input-modal-competitive">
+            <div class="player-side-input">
+                <h3 id="player-side-label" style="color: var(--user-accent);">Player Side: Player</h3>
+                <form id="chat-form-player-side" class="chat-form">
+                    <textarea id="user-input-player-side" placeholder="Describe your actions or your side's strategy..." autocomplete="off"></textarea>
+                    <div class="chat-form-buttons">
+                        <button type="button" id="save-state-btn" class="icon-button" title="Save Game State"><span>💾</span> Save</button>
+                        <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image"><span>🖼️</span> Save Image</button>
+                        <button type="button" id="mic-btn-rpg" class="icon-button" title="Hold to Record Voice"><span>🎤</span></button>
+                        <button type="submit" id="submit-turn-btn">Submit Turn</button>
+                    </div>
+                </form>
+            </div>
+            <div class="opponent-side-input hidden" id="opponent-input-container">
+                <h3 id="opponent-side-label" style="color: var(--opponent-color);">Opponent Side: Opponent</h3>
+                <form id="chat-form-opponent-side" class="chat-form">
+                    <textarea id="user-input-opponent-side" placeholder="Describe Opponent's actions (for competitive play only)..." autocomplete="off"></textarea>
+                </form>
+            </div>
+            <div class="sandbox-combat-actions hidden" id="sandbox-combat-actions-container">
+                <h3>Initiate Combat</h3>
+                <label for="sandbox-opponent-description">Who/What do you want to fight?</label>
+                <input type="text" id="sandbox-opponent-description" placeholder="E.g., A pack of dire wolves, The rogue AI, A rival adventurer">
+                <button id="initiate-combat-btn">Initiate Combat</button>
+            </div>
+        </div>
+        <p class="input-hint-competitive" id="input-hint-text">Hold SPACE to Speak</p>
+        <div class="game-over-buttons hidden">
+            <button id="new-game-btn">Start New Chronicle</button>
+        </div>
+    </div>
 
-dotenv.config();
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const API_URL = "";
+            let gameState = {
+                currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [],
+                gameMode: 'sandbox', latestImageB64: null, gameOver: false
+            };
+            const getEl = (id) => document.getElementById(id);
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
-const PORT = process.env.PORT || 3001;
-
-const DB_ROOT_PATH = process.env.DB_ROOT_PATH || '/var/data';
-const DB_FILE = path.join(DB_ROOT_PATH, 'pane.db');
-const MODS_DIR = path.join(DB_ROOT_PATH, 'mods');
-const SAVES_DIR = path.join(DB_ROOT_PATH, 'saves');
-const TEMP_DIR = path.join(DB_ROOT_PATH, 'temp');
-
-const app = express();
-app.use(express.json({ limit: '50mb' }));
-app.use(fileUpload());
-app.use(cors());
-
-let loadedPersonas = {};
-let loadedAesthetics = {};
-
-app.get('/api/admin/reset-database', async (req, res) => {
-    // ... no changes
-});
-
-app.get('/api/personas', (req, res) => {
-    const selectablePersonas = Object.values(loadedPersonas).filter(p => p.role === 'gm');
-    res.json(selectablePersonas);
-});
-app.get('/api/aesthetics', (req, res) => res.json(loadedAesthetics));
-
-app.post('/api/dynamic-narrative/start', async (req, res) => {
-    // ... no changes
-});
-
-app.post('/api/dynamic-narrative/:sceneId/turn', async (req, res) => {
-    // ... no changes
-});
-
-app.post('/api/dynamic-narrative/:sceneId/turn/voice', async (req, res) => {
-    // ... no changes
-});
-
-app.post('/api/dynamic-narrative/:sceneId/initiate-sandbox-combat', async (req, res) => {
-    // ... no changes
-});
-
-app.post('/api/adventure/:sceneId/state/save', (req, res) => {
-    // ... no changes
-});
-
-app.post('/api/adventure/state/load', (req, res) => {
-    // ... no changes
-});
-
-
-const PUBLIC_DIR = path.join(__dirname, 'public');
-app.use(express.static(PUBLIC_DIR));
-
-// --- THIS IS THE FIX ---
-// Serve index.html for the root route
-app.get('/', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
-});
-// ----------------------
-
-app.get('*', (req, res) => {
-    const indexPath = path.join(PUBLIC_DIR, 'index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error(`[SERVER ERROR] Failed to send file:`, err);
-            res.status(404).send("Could not find the application's main page.");
-        }
-    });
-});
-
-const server = createServer(app);
-const db = new Database(DB_FILE);
-db.exec(`CREATE TABLE IF NOT EXISTS scenes ( sceneId TEXT PRIMARY KEY, chat_history TEXT, gm_persona_id TEXT, game_mode TEXT, player_side_name TEXT DEFAULT 'Player', opponent_side_name TEXT DEFAULT 'Opponent', round_number INTEGER DEFAULT 0, player_hp INTEGER DEFAULT 3, opponent_hp INTEGER DEFAULT 3, sandbox_opponent_details TEXT, director_can_initiate_combat INTEGER DEFAULT 1 )`);
-
-async function loadMods() {
-    try {
-        const personaDir = path.join(MODS_DIR, 'personas');
-        await fs.mkdir(personaDir, { recursive: true });
-        const personaFiles = await fs.readdir(personaDir);
-        for (const file of personaFiles) {
-            if (path.extname(file) === '.json') {
-                const filePath = path.join(personaDir, file);
-                const fileContent = await fs.readFile(filePath, 'utf-8');
-                const persona = JSON.parse(fileContent);
-                if (!persona.role) { persona.role = 'gm'; }
-                loadedPersonas[persona.actor_id] = persona;
-                console.log(`[PANE GLASS] Loaded Persona: ${persona.name}`);
-            }
-        }
-    } catch (error) {
-        console.error('[PANE GLASS] Failed to load mods:', error);
-    }
-}
-async function loadAesthetics() {
-    try {
-        const aestheticDir = path.join(__dirname, 'public', 'aesthetics');
-        await fs.mkdir(aestheticDir, { recursive: true });
-        const aestheticDirs = await fs.readdir(aestheticDir, { withFileTypes: true });
-        for (const dirent of aestheticDirs) {
-            if (dirent.isDirectory()) {
-                const aestheticId = dirent.name;
-                const manifestPath = path.join(aestheticDir, aestheticId, 'aesthetic.json');
-                try {
-                    const fileContent = await fs.readFile(manifestPath, 'utf-8');
-                    loadedAesthetics[aestheticId] = JSON.parse(fileContent);
-                    console.log(`[PANE GLASS] Loaded Aesthetic: ${loadedAesthetics[aestheticId].name}`);
-                } catch (e) {
-                    console.error(`[PANE GLASS] Failed to load aesthetic for ${aestheticId}:`, e.message);
+            const fetchAPI = async (endpoint, options = {}) => {
+                const response = await fetch(`${API_URL}${endpoint}`, options);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` }));
+                    throw new Error(errorData.error || `HTTP Error: ${response.status}`);
                 }
+                return response.json();
+            };
+
+            const typewriter = (el, txt) => new Promise(resolve => {
+                let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); getEl('chat-log-rpg').scrollTop = getEl('chat-log-rpg').scrollHeight; } else { clearInterval(interval); resolve(); } }, 15);
+            });
+            
+            const playAudio = (b64) => new Promise(resolve => {
+                if (gameState.currentAudio) gameState.currentAudio.pause();
+                if (b64) {
+                    gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64);
+                    gameState.currentAudio.play().catch(e => resolve());
+                    gameState.currentAudio.onended = () => resolve();
+                } else {
+                    resolve();
+                }
+            });
+
+            const addLog = (content, author, className) => {
+                const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry';
+                const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`;
+                const contentSpan = document.createElement('span');
+                entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan);
+                getEl('chat-log-rpg').appendChild(entryDiv);
+                return typewriter(contentSpan, content || '');
+            };
+
+            const setLoading = (isLoading, message = "Processing...") => {
+                getEl('loader-text-rpg').textContent = message;
+                getEl('loading-overlay').classList.toggle('hidden', !isLoading);
+            };
+
+            const updateBackgroundImage = (b64_image) => {
+                if (b64_image) {
+                    getEl('background-canvas').style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`;
+                    gameState.latestImageB64 = b64_image;
+                    getEl('save-image-btn').disabled = false;
+                }
+            };
+
+            const processTurn = async ({ message, opponentMessage }) => {
+                if (gameState.gameOver) return;
+                getEl('competitive-input-overlay').classList.add('hidden');
+                setLoading(true, "Processing Actions...");
+
+                try {
+                    await addLog(message, gameState.playerSideName, 'player-side');
+                    
+                    const endpoint = `/api/dynamic-narrative/${gameState.currentSceneId}/turn`;
+                    const payload = JSON.stringify({ playerSideMessage: message, opponentSideMessage });
+                    const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
+                    
+                    const data = await fetchAPI(endpoint, options);
+                    Object.assign(gameState, data);
+                    updateBackgroundImage(data.response.image_b64);
+                    
+                    await addLog(data.response.narration, gameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await playAudio(data.response.audio_base_64);
+
+                } catch (e) {
+                    console.error("Error during turn processing", e);
+                    addLog(`Turn failed: ${e.message}`, "System", "system-error");
+                } finally {
+                    setLoading(false);
+                    if (!gameState.gameOver) {
+                        getEl('competitive-input-overlay').classList.remove('hidden');
+                        getEl('user-input-player-side').value = '';
+                    }
+                }
+            };
+
+            const startChronicle = async (body) => {
+                setLoading(true, "Preparing Chronicle...");
+                try {
+                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    Object.assign(gameState, data);
+                    
+                    updateBackgroundImage(data.response.image_b64);
+                    
+                    getEl('creation-screen-rpg').classList.remove('active');
+                    getEl('hub-screen').classList.remove('active');
+                    getEl('genesis-screen').classList.add('active');
+                    setLoading(false);
+
+                    await addLog(data.response.narration, gameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await playAudio(data.response.audio_base_64);
+                    getEl('competitive-input-overlay').classList.remove('hidden');
+                } catch (e) {
+                    setLoading(false);
+                    alert("Failed to start chronicle: " + e.message);
+                }
+            };
+            
+            const prepareSandbox = () => {
+                const body = { gameSettingPrompt: getEl('prompt-rpg').value.trim(), playerSideName: getEl('player-side-name-input').value.trim() || 'Player', initialPlayerSidePrompt: getEl('initial-player-side-prompt').value.trim(), selectedGmPersonaId: getEl('gm-selector').value, gameMode: 'sandbox', directorCanInitiateCombat: getEl('director-conflict-checkbox').checked };
+                if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt) return alert("Please describe the setting and your initial strategy.");
+                gameState.playerSideName = body.playerSideName;
+                startChronicle(body);
+            };
+
+            const prepareCompetitive = () => {
+                const body = { gameSettingPrompt: getEl('prompt-rpg').value.trim(), playerSideName: getEl('player-side-name-input').value.trim() || 'Player', opponentSideName: getEl('opponent-side-name-input').value.trim() || 'Opponent', initialPlayerSidePrompt: getEl('initial-player-side-prompt').value.trim(), initialOpponentSidePrompt: getEl('initial-opponent-side-prompt').value.trim(), selectedGmPersonaId: 'Tactician_GM', gameMode: 'competitive' };
+                if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) return alert("Please complete all fields for competitive mode.");
+                gameState.playerSideName = body.playerSideName; gameState.opponentSideName = body.opponentSideName;
+                startChronicle(body);
+            };
+
+            // Main App Initialization
+            try {
+                const personas = await fetchAPI('/api/personas');
+                gameState.personas = personas;
+                const gmSelector = getEl('gm-selector');
+                gmSelector.innerHTML = '';
+                personas.filter(p => p.role === 'gm').forEach(p => gmSelector.add(new Option(p.name, p.actor_id)));
+                if (gmSelector.options.length > 0) gmSelector.value = 'The_Conductor';
+
+                getEl('launch-sandbox-btn').addEventListener('click', () => { 
+                    getEl('hub-screen').classList.remove('active'); 
+                    getEl('creation-screen-rpg').classList.add('active'); 
+                    getEl('opponent-side-name-form-group').classList.add('hidden'); 
+                    getEl('initial-opponent-side-prompt-form-group').classList.add('hidden'); 
+                    getEl('gm-selection-group').classList.remove('hidden'); 
+                    getEl('director-conflict-group').classList.remove('hidden'); 
+                    getEl('mode-title').textContent = "Sandbox Narrative Setup"; 
+                });
+
+                getEl('launch-competitive-btn').addEventListener('click', () => { 
+                    getEl('hub-screen').classList.remove('active'); 
+                    getEl('creation-screen-rpg').classList.add('active'); 
+                    getEl('opponent-side-name-form-group').classList.remove('hidden'); 
+                    getEl('initial-opponent-side-prompt-form-group').classList.remove('hidden'); 
+                    getEl('gm-selection-group').classList.add('hidden'); 
+                    getEl('director-conflict-group').classList.add('hidden'); 
+                    getEl('mode-title').textContent = "Competitive Narrative Setup"; 
+                });
+                
+                getEl('start-btn-rpg').addEventListener('click', () => {
+                    (getEl('mode-title').textContent.includes('Sandbox')) ? prepareSandbox() : prepareCompetitive();
+                });
+
+                getEl('chat-form-player-side').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const playerMessage = getEl('user-input-player-side').value.trim();
+                    if (!playerMessage) return;
+                    processTurn({ message: playerMessage, opponentMessage: getEl('user-input-opponent-side').value.trim() });
+                });
+
+                getEl('save-image-btn').addEventListener('click', () => {
+                    if (!gameState.latestImageB64) return;
+                    const a = document.createElement('a');
+                    a.href = `data:image/jpeg;base64,${gameState.latestImageB64}`;
+                    a.download = `GlassICE-Chronicle-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
+                    a.click();
+                });
+
+            } catch(e) {
+                alert("Could not connect to the GlassICE server. Please ensure the server is running and refresh the page.");
+                console.error("Initialization failed:", e);
             }
-        }
-    } catch (error) {
-        console.error('[PANE GLASS] Failed to load aesthetics:', error);
-    }
-}
-async function generateSpeech(text, voice = "shimmer") {
-    if (!text || !process.env.OPENAI_API_KEY) return null;
-    try {
-        const cleanText = text.replace(/<[^>]*>/g, '');
-        const ttsResponse = await openai.audio.speech.create({ model: "tts-1-hd", voice: voice, input: cleanText });
-        const buffer = Buffer.from(await ttsResponse.arrayBuffer());
-        return buffer.toString('base64');
-    } catch (error) {
-        console.error("[AI-TTS ERROR] Speech Generation Error:", error);
-        return null;
-    }
-}
-async function generateImage(shotDescription) {
-    if (!shotDescription || !STABILITY_API_KEY) {
-        console.log("[AI-IMAGE] Skipping image generation due to missing description or API key.");
-        return null;
-    }
-    const formData = new FormData();
-    formData.append('prompt', shotDescription);
-    formData.append('aspect_ratio', '16:9');
-    try {
-        const response = await fetch("https://api.stability.ai/v2beta/stable-image/generate/core", {
-            method: 'POST',
-            headers: { ...formData.getHeaders(), "authorization": `Bearer ${STABILITY_API_KEY}` },
-            body: formData,
         });
-        if (!response.ok) throw new Error(`Non-200 response from Stability AI: ${response.statusText}`);
-        const buffer = await response.buffer();
-        return buffer.toString('base64');
-    } catch (error) {
-        console.error("[AI-IMAGE ERROR] Stable Diffusion Generation Failed:", error.message);
-        return null;
-    }
-}
-
-async function fetchActorResponse(actorId, userPrompt, history = []) {
-    const actor = loadedPersonas[actorId];
-    if (!actor) { throw new Error(`Unknown actor: ${actorId}`); }
-    const messages = history.slice(-8).map(msg => ({ role: msg.role, content: (typeof msg.content === 'object' && msg.content !== null && 'narration' in msg.content) ? msg.content.narration : msg.content }));
-    const finalMessages = [{ role: "system", content: actor.system_prompt }, ...messages, { role: "user", content: userPrompt }];
-    try {
-        const completion = await openai.chat.completions.create({ model: actor.model_name || "gpt-4o", messages: finalMessages, response_format: { type: "json_object" } });
-        return completion.choices[0].message?.content || '{"narration":"[AI returned an empty response]"}';
-    } catch (error) {
-        console.error(`[AI-CHAT ERROR] Error from OpenAI for ${actorId}:`, error);
-        throw new Error(`AI persona '${actorId}' failed to respond: ${error.message}`);
-    }
-}
-function parseAndValidateAIResponse(responseText) {
-    const cleanedText = responseText.replace(/```json\n?|\n?```/g, '').trim();
-    try {
-        return JSON.parse(cleanedText);
-    } catch (error) {
-        console.error("[PARSING ERROR] Failed to parse AI response JSON:", error, "Raw response:", cleanedText.substring(0, 500));
-        return { narration: `[Parsing Error]`, damage_to_player: 0, damage_to_opponent: 0 };
-    }
-}
-
-async function handleDynamicTurnLogic({ sceneId, playerSideMessage, opponentSideMessage, transcribedMessage = null }) {
-    // ... This large function is correct and does not need changes.
-}
-
-async function startServer() {
-    console.log("[SERVER] Starting server initialization...");
-    await fs.mkdir(SAVES_DIR, { recursive: true }).catch(console.error);
-    await fs.mkdir(TEMP_DIR, { recursive: true }).catch(console.error);
-    await fs.mkdir(path.join(MODS_DIR, 'personas'), { recursive: true }).catch(console.error);
-
-    loadedPersonas['Tactician_GM'] = { actor_id: 'Tactician_GM', name: 'The Grand Tactician', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Grand Tactician,' an AI Game Master. You follow instructions precisely. Your responses are always in JSON format.`, voice: 'onyx' };
-    loadedPersonas['The_Conductor'] = { actor_id: 'The_Conductor', name: 'The Conductor', role: 'gm', model_name: 'gpt-4o', system_prompt: `You are 'The Conductor,' an AI Game Master crafting dramatic narratives. You follow instructions precisely. Your responses are always in JSON format.`, voice: 'nova' };
-    
-    await loadMods();
-    await loadAesthetics();
-
-    if (!process.env.OPENAI_API_KEY) console.warn("[SERVER WARNING] OPENAI_API_KEY is not set. Speech generation will fail.");
-    if (!STABILITY_API_KEY) console.warn("[SERVER WARNING] STABILITY_API_KEY is not set. Image generation will be skipped.");
-
-    server.listen(PORT, () => console.log(`GlassICE v27.0 (Maestro - Stable Diffusion) running at http://localhost:${PORT}`));
-}
-
-startServer();
+    </script>
+</body>
+</html>
