@@ -200,7 +200,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // THIS IS THE FIX: Using an empty string makes the API calls relative to the current domain.
             const API_URL = "";
 
             const hubScreen = document.getElementById('hub-screen');
@@ -474,26 +473,34 @@
                 gmPersonas.forEach(persona => { const option = document.createElement('option'); option.value = persona.actor_id; option.textContent = persona.name; ui.gmSelector.appendChild(option); });
                 const conductorExists = gmPersonas.some(p => p.actor_id === 'The_Conductor');
                 if (conductorExists) { ui.gmSelector.value = 'The_Conductor'; } else if (gmPersonas.length > 0) { ui.gmSelector.value = gmPersonas[0].actor_id; }
-                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director Selected";
+                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director";
             }
             
             async function initializeUIAndData() {
                 ui = { backgroundCanvas: document.getElementById('background-canvas'), saveImageBtn: document.getElementById('save-image-btn'), chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
-                try { const personasData = await fetchAPI('/api/personas'); dynamicGameState.personas = personasData; populateGmSelector(); }
-                catch (e) { ui.startBtn.disabled = true; ui.startBtn.textContent = 'CONNECTION FAILED'; }
 
+                // THIS IS THE FIX: Attach listeners immediately so the UI is always responsive.
                 launchSandboxBtn.addEventListener('click', () => { hubScreen.classList.remove('active'); creationScreen.classList.remove('hidden'); creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.add('hidden'); ui.initialOpponentSidePromptFormGroup.classList.add('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Sandbox Narrative Setup"; ui.startBtn.onclick = prepareSandboxChronicle; });
                 launchCompetitiveBtn.addEventListener('click', () => { hubScreen.classList.remove('active'); creationScreen.classList.remove('hidden'); creationScreen.classList.add('active'); ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.add('hidden'); directorConflictGroup.classList.add('hidden'); ui.selectedGmDisplay.textContent = "The Grand Tactician (Fixed)"; ui.modeTitle.textContent = "Competitive Narrative Setup"; ui.startBtn.onclick = prepareCompetitiveChronicle; });
-                
                 loadChronicleBtn.addEventListener('click', () => loadFileInput.click());
                 loadFileInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (e) => { try { const loadedJson = JSON.parse(e.target.result); setLoading(true, "Loading Chronicle..."); const newSceneData = await fetchAPI('/api/adventure/state/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadedJson) }); await resumeGameFromState(newSceneData); setLoading(false); } catch (err) { setLoading(false); alert('Failed to load save file.'); } }; reader.readAsText(file); event.target.value = ''; });
-
-                ui.gmSelector.addEventListener('change', () => { ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director"; });
-                micBtnRpg.addEventListener('mousedown', handleMicPress); micBtnRpg.addEventListener('mouseup', handleMicRelease);
+                micBtnRpg.addEventListener('mousedown', handleMicPress);
+                micBtnRpg.addEventListener('mouseup', handleMicRelease);
                 saveStateBtn.addEventListener('click', saveGameState);
                 ui.saveImageBtn.addEventListener('click', saveCurrentImage);
                 newGameBtn.addEventListener('click', startNewGame);
-                
+                ui.gmSelector.addEventListener('change', () => { ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director"; });
+
+                try { 
+                    const personasData = await fetchAPI('/api/personas'); 
+                    dynamicGameState.personas = personasData; 
+                    populateGmSelector(); 
+                } catch (e) { 
+                    ui.startBtn.disabled = true; 
+                    ui.selectedGmDisplay.textContent = "CONNECTION FAILED";
+                    ui.selectedGmDisplay.style.color = "var(--error-accent)";
+                }
+
                 initiateCombatBtn.addEventListener('click', async () => {
                     if (!sandboxOpponentDescriptionInput.value.trim()) { alert("Please describe who/what you want to fight."); return; }
                     setLoading(true, `Preparing for combat...`);
