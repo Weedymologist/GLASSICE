@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIGHTFALL Operator Link</title>
+    <style>
+        :root {
+            --bg-color: #02040a;
+            --text-color: #e0e1f0;
+            --primary-accent: #00c3ff;
+            --border-color: rgba(0, 195, 255, 0.3);
+            --font-heading: 'Orbitron', sans-serif; /* Placeholder, similar to your other project */
+            --font-body: 'Roboto Mono', monospace;   /* Placeholder */
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-body);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            width: 95%;
+            height: 95%;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        header {
+            text-align: center;
+            font-family: var(--font-heading);
+            color: var(--primary-accent);
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .content {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+        #controls { text-align: center; margin-top: 20px; }
+        #status { font-style: italic; opacity: 0.7; margin-top: 10px; }
+        button {
+            padding: 12px 30px;
+            background-color: transparent;
+            color: var(--primary-accent);
+            font-family: var(--font-heading);
+            cursor: pointer;
+            border: 2px solid var(--primary-accent);
+            font-size: 1.1em;
+            border-radius: 4px;
+            transition: all .2s ease;
+        }
+        button:hover:not(:disabled) {
+            background-color: var(--primary-accent);
+            color: var(--bg-color);
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OPERATOR LINK :: ACTIVE</h1>
+        </header>
+        <main class="content">
+            <video id="screen-feed" autoplay muted></video>
+        </main>
+        <div id="controls">
+            <button id="start-btn">Initiate Vision Link</button>
+            <p id="status">Status: Standby</p>
+        </div>
+    </div>
+
+    <script>
+        // This script runs in the renderer process (the window itself)
+        const { ipcRenderer } = require('electron');
+
+        const startBtn = document.getElementById('start-btn');
+        const videoElement = document.getElementById('screen-feed');
+        const statusElement = document.getElementById('status');
+
+        startBtn.addEventListener('click', async () => {
+            statusElement.textContent = 'Status: Querying sources...';
+            startBtn.disabled = true;
+
+            try {
+                // 1. Ask the main process for all available screen/window sources
+                const sources = await ipcRenderer.invoke('get-screen-sources');
+
+                // For simplicity, we'll auto-select the first available screen.
+                // In the future, we can build a UI to let the user choose.
+                const primaryScreen = sources.find(source => source.id.startsWith('screen:'));
+                
+                if (!primaryScreen) {
+                    throw new Error("No primary screen source could be found.");
+                }
+
+                statusElement.textContent = `Status: Found source '${primaryScreen.name}'. Establishing link...`;
+
+                // 2. Use the standard Web API to get a media stream, but with Electron's magic ID
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: primaryScreen.id,
+                            minWidth: 1280,
+                            maxWidth: 1920,
+                            minHeight: 720,
+                            maxHeight: 1080
+                        }
+                    }
+                });
+
+                // 3. Attach the live stream to our video element
+                videoElement.srcObject = stream;
+                videoElement.onloadedmetadata = () => videoElement.play();
+                statusElement.textContent = 'Status: Vision Link Active.';
+                startBtn.textContent = 'Link Established';
+
+            } catch (error) {
+                console.error('Error starting screen capture:', error);
+                statusElement.textContent = `Error: ${error.message}`;
+                startBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
