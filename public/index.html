@@ -239,31 +239,244 @@
             const directorConflictGroup = document.getElementById('director-conflict-group');
 
             let ui = {};
-            
-            // All the helper functions like updateInputState, typewriter, etc. go here...
-            // These functions are correct and do not need changes.
-            function updateInputState() { /* ... */ }
-            const typewriter = (el, txt) => new Promise(resolve => { /* ... */ });
-            const playAudio = (b64) => new Promise(resolve => { /* ... */ });
-            const addLog = (content, author, className) => { /* ... */ };
-            const setLoading = (isLoading, message = "Processing...") => { /* ... */ };
-            const updateBackgroundImage = (b64_image) => { /* ... */ };
-            const saveCurrentImage = () => { /* ... */ };
-            async function fetchAPI(endpoint, options = {}) { /* ... */ }
-            const toggleCompetitiveInputOverlay = (show) => { /* ... */ };
-            const handleMicPress = () => { /* ... */ };
-            const handleMicRelease = () => { /* ... */ };
-            const processTurnInput = async ({ message, formData }) => { /* ... */ };
-            const prepareSandboxChronicle = () => { /* ... */ };
-            const prepareCompetitiveChronicle = () => { /* ... */ };
-            const startChronicle = async (body) => { /* ... */ };
-            const saveGameState = async () => { /* ... */ };
-            const resumeGameFromState = async (loadedState) => { /* ... */ };
-            const startNewGame = () => { /* ... */ };
-            async function populateGmSelector() { /* ... */ }
 
-            // --- THIS IS THE CORRECTED INITIALIZATION LOGIC ---
-            function initializeUIAndData() {
+            function updateInputState() {
+                const isCombatMode = dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat';
+                const isSandboxOpenEnded = dynamicGameState.gameMode === 'sandbox';
+
+                playerSideLabel.textContent = `${dynamicGameState.playerSideName}:`;
+                opponentSideLabel.textContent = `${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName}:`;
+                opponentInputContainer.classList.toggle('hidden', dynamicGameState.gameMode !== 'competitive');
+                sandboxCombatActionsContainer.classList.toggle('hidden', !isSandboxOpenEnded);
+                micBtnRpg.classList.toggle('hidden', dynamicGameState.gameMode === 'competitive');
+                gameStatsDisplay.classList.toggle('hidden', !isCombatMode);
+                if (isCombatMode) {
+                    gameStatsDisplay.textContent = `Round: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP}`;
+                }
+                if (isSandboxOpenEnded) { inputHintText.textContent = "Hold SPACE to Speak | Tap SPACE to Type"; }
+                else if (isCombatMode) { inputHintText.textContent = "Enter actions for your side" + (dynamicGameState.gameMode === 'competitive' ? " and the opponent." : "."); }
+                
+                if (dynamicGameState.gameOver) {
+                    turnStatus.textContent = "Chronicle Concluded!";
+                    userInputPlayerSide.disabled = true; userInputOpponentSide.disabled = true; submitTurnBtn.disabled = true; micBtnRpg.disabled = true;
+                    saveStateBtn.disabled = false;
+                    ui.saveImageBtn.disabled = !dynamicGameState.latestImageB64;
+                    gameStatsDisplay.textContent = `FINAL ROUND: ${dynamicGameState.currentRound} | ${dynamicGameState.playerSideName} HP: ${dynamicGameState.playerHP} | ${dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName} HP: ${dynamicGameState.opponentHP} | GAME OVER`;
+                    gameOverButtonsContainer.classList.remove('hidden');
+                    return;
+                }
+                gameOverButtonsContainer.classList.add('hidden');
+                switch (dynamicGameState.turnPhase) {
+                    case 'player_side_input':
+                        userInputPlayerSide.disabled = false; userInputOpponentSide.disabled = dynamicGameState.gameMode !== 'competitive';
+                        submitTurnBtn.disabled = false; micBtnRpg.disabled = false; saveStateBtn.disabled = false;
+                        ui.saveImageBtn.disabled = !dynamicGameState.latestImageB64;
+                        userInputPlayerSide.focus();
+                        break;
+                    case 'adjudicating':
+                        userInputPlayerSide.disabled = true; userInputOpponentSide.disabled = true;
+                        submitTurnBtn.disabled = true; micBtnRpg.disabled = true; saveStateBtn.disabled = true;
+                        ui.saveImageBtn.disabled = true;
+                        break;
+                }
+            }
+            
+            const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); ui.chatLog.scrollTop = ui.chatLog.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
+            const playAudio = (b64) => new Promise(resolve => { if (dynamicGameState.currentAudio) { dynamicGameState.currentAudio.pause(); } if (b64) { dynamicGameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); dynamicGameState.currentAudio.play().catch(e => resolve()); dynamicGameState.currentAudio.onended = () => resolve(); } else { resolve(); } });
+            const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLog.appendChild(entryDiv); return typewriter(contentSpan, content || ''); };
+            const setLoading = (isLoading, message = "Processing...") => { ui.loaderText.textContent = message; ui.loaderOverlay.classList.toggle('hidden', !isLoading); };
+            
+            const updateBackgroundImage = (b64_image) => {
+                if (b64_image) {
+                    ui.backgroundCanvas.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`;
+                    dynamicGameState.latestImageB64 = b64_image;
+                    if(ui.saveImageBtn) ui.saveImageBtn.disabled = false;
+                }
+            };
+
+            const saveCurrentImage = () => {
+                if (!dynamicGameState.latestImageB64) {
+                    addLog("There is no image to save yet.", "System", "system-info");
+                    return;
+                }
+                const a = document.createElement('a');
+                a.href = `data:image/jpeg;base64,${dynamicGameState.latestImageB64}`;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                a.download = `GlassICE-Chronicle-${timestamp}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            async function fetchAPI(endpoint, options = {}) { try { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error); } return response.json(); } catch (error) { console.error(`API Error on ${endpoint}:`, error); addLog(`Server communication failed: ${error.message}.`, "System", "system-error"); throw error; } }
+            
+            const toggleCompetitiveInputOverlay = (show) => { competitiveInputOverlay.classList.toggle('hidden', !show); if (show) updateInputState(); };
+            const handleMicPress = () => { if (dynamicGameState.isListening || dynamicGameState.gameOver) return; navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { dynamicGameState.isListening = true; micBtnRpg.classList.add('is-listening'); mediaRecorder = new MediaRecorder(stream); audioChunks = []; mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data)); mediaRecorder.addEventListener("stop", () => { const audioBlob = new Blob(audioChunks); const formData = new FormData(); formData.append('audio', audioBlob); processTurnInput({ formData }); stream.getTracks().forEach(track => track.stop()); }); mediaRecorder.start(); }).catch(err => alert("Microphone access denied.")); };
+            const handleMicRelease = () => { if (!dynamicGameState.isListening || !mediaRecorder || mediaRecorder.state !== "recording") return; mediaRecorder.stop(); micBtnRpg.classList.remove('is-listening'); dynamicGameState.isListening = false; };
+
+            const processTurnInput = async ({ message, formData }) => {
+                if (dynamicGameState.gameOver) return;
+                
+                toggleCompetitiveInputOverlay(false);
+                dynamicGameState.turnPhase = 'adjudicating';
+                updateInputState();
+
+                try {
+                    const isVoiceInput = !!formData;
+                    if (message) {
+                        dynamicGameState.playerSideInputBuffer = message;
+                        await addLog(message, dynamicGameState.playerSideName, 'player-side');
+                        userInputPlayerSide.value = '';
+                    } else {
+                        dynamicGameState.playerSideInputBuffer = "... (Speaking)";
+                        await addLog("... (Speaking)", dynamicGameState.playerSideName, 'system-info');
+                    }
+
+                    if (dynamicGameState.gameMode === 'competitive') {
+                        dynamicGameState.opponentSideInputBuffer = userInputOpponentSide.value.trim();
+                        if (dynamicGameState.opponentSideInputBuffer) {
+                            await addLog(dynamicGameState.opponentSideInputBuffer, dynamicGameState.opponentSideName, 'opponent-side');
+                        }
+                        userInputOpponentSide.value = '';
+                    } else {
+                        dynamicGameState.opponentSideInputBuffer = '';
+                    }
+
+                    setLoading(true, isVoiceInput ? "Transcribing Voice..." : "Processing Actions...");
+
+                    const endpoint = isVoiceInput ? `/api/dynamic-narrative/${dynamicGameState.currentSceneId}/turn/voice` : `/api/dynamic-narrative/${dynamicGameState.currentSceneId}/turn`;
+                    const payload = isVoiceInput ? formData : JSON.stringify({ playerSideMessage: dynamicGameState.playerSideInputBuffer, opponentSideMessage: dynamicGameState.opponentSideInputBuffer });
+                    const options = isVoiceInput ? { method: 'POST', body: payload } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
+                    const data = await fetchAPI(endpoint, options);
+
+                    dynamicGameState.currentRound = data.currentRound;
+                    dynamicGameState.playerHP = data.playerHP;
+                    dynamicGameState.opponentHP = data.opponentHP;
+                    dynamicGameState.gameOver = data.gameOver;
+                    dynamicGameState.gameMode = data.gameMode;
+                    dynamicGameState.sandboxOpponentName = data.sandboxOpponentName;
+                    
+                    updateBackgroundImage(data.response.image_b64);
+
+                    if (isVoiceInput && data.transcribedMessage) {
+                        if (ui.chatLog.lastChild && ui.chatLog.lastChild.querySelector('strong.system-info')) {
+                            ui.chatLog.lastChild.remove();
+                        }
+                        await addLog(data.transcribedMessage, dynamicGameState.playerSideName, 'player-side');
+                    }
+                    
+                    setLoading(false);
+                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await Promise.all([
+                        textDisplayPromise,
+                        playAudio(data.response.audio_base_64)
+                    ]);
+
+                    userInputPlayerSide.value = '';
+                    userInputOpponentSide.value = '';
+                    dynamicGameState.playerSideInputBuffer = '';
+                    dynamicGameState.opponentSideInputBuffer = '';
+
+                    if (dynamicGameState.gameMode === 'competitive' || dynamicGameState.gameMode === 'sandbox_combat') {
+                        if (dynamicGameState.gameOver) {
+                            await addLog(`Game Over! ${data.finalReason || "The conflict reached a decisive end."}`, "System", "system-error");
+                        } else {
+                            let turnPrompt = (data.damageDealtToPlayer > 0 || data.damageDealtToOpponent > 0) ? `Round ${data.currentRound} Result: You dealt ${data.damageDealtToOpponent} damage and took ${data.damageDealtToPlayer} damage.` : `Round ${data.currentRound} Result: A stalemate. No damage was dealt.`;
+                            await addLog(turnPrompt, "System", "system-info");
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error during turn processing, unlocking UI.", e);
+                } finally {
+                    setLoading(false);
+                    dynamicGameState.turnPhase = 'player_side_input';
+                    toggleCompetitiveInputOverlay(true); 
+                }
+            };
+
+            const prepareSandboxChronicle = () => {
+                const directorCanInitiateCombat = document.getElementById('director-conflict-checkbox').checked;
+                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), opponentSideName: '', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: '', selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox', directorCanInitiateCombat: directorCanInitiateCombat };
+                if (!body.gameSettingPrompt || !body.playerSideName || !body.initialPlayerSidePrompt || !body.selectedGmPersonaId) { alert("Please complete all required fields and select a Director."); return; }
+                dynamicGameState.playerSideName = body.playerSideName;
+                startChronicle(body);
+            };
+            const prepareCompetitiveChronicle = () => {
+                const body = { gameSettingPrompt: ui.prompt.value.trim(), playerSideName: ui.playerSideNameInput.value.trim(), opponentSideName: ui.opponentSideNameInput.value.trim(), initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), selectedGmPersonaId: 'Tactician_GM', gameMode: 'competitive', directorCanInitiateCombat: true };
+                if (!body.gameSettingPrompt || !body.playerSideName || !body.opponentSideName || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) { alert("Please complete all required fields."); return; }
+                dynamicGameState.playerSideName = body.playerSideName; dynamicGameState.opponentSideName = body.opponentSideName;
+                startChronicle(body);
+            };
+
+            const startChronicle = async (body) => {
+                setLoading(true, "Preparing Chronicle...");
+                try {
+                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    dynamicGameState.currentSceneId = data.sceneId; dynamicGameState.gameMode = data.gameMode; dynamicGameState.currentRound = data.currentRound;
+                    dynamicGameState.playerHP = data.playerHP; dynamicGameState.opponentHP = data.opponentHP; dynamicGameState.gameOver = data.gameOver;
+                    
+                    updateBackgroundImage(data.response.image_b64);
+                    
+                    creationScreen.classList.remove('active'); genesisScreen.classList.add('active');
+                    setLoading(false);
+                    const textDisplayPromise = addLog(data.response.narration, dynamicGameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
+                    await Promise.all([
+                        textDisplayPromise,
+                        playAudio(data.response.audio_base_64)
+                    ]);
+                    toggleCompetitiveInputOverlay(true); dynamicGameState.turnPhase = 'player_side_input'; updateInputState();
+                } catch (e) { setLoading(false); }
+            };
+
+            const saveGameState = async () => {
+                if (!dynamicGameState.currentSceneId) { addLog("No active chronicle to save.", "System", "system-info"); return; }
+                addLog("Preparing save file...", "System", "system-info");
+                try {
+                    const gameState = await fetchAPI(`/api/adventure/${dynamicGameState.currentSceneId}/state/save`, { method: 'POST' });
+                    const stateJson = JSON.stringify(gameState, null, 2);
+                    const blob = new Blob([stateJson], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+                    a.download = `GlassICE_Save_${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                    addLog(`Chronicle state saved as ${a.download}`, "System", "system-info");
+                } catch (e) { /* Error already logged by fetchAPI */ }
+            };
+            
+            const resumeGameFromState = async (loadedState) => {
+                dynamicGameState.currentSceneId = loadedState.sceneId; dynamicGameState.playerSideName = loadedState.player_side_name; dynamicGameState.opponentSideName = loadedState.opponent_side_name; dynamicGameState.gameMode = loadedState.game_mode; dynamicGameState.gmPersonaId = loadedState.gm_persona_id; dynamicGameState.currentRound = loadedState.round_number; dynamicGameState.playerHP = loadedState.player_hp; dynamicGameState.opponentHP = loadedState.opponent_hp; dynamicGameState.gameOver = false; dynamicGameState.sandboxOpponentName = loadedState.sandbox_opponent_details;
+                hubScreen.classList.remove('active'); creationScreen.classList.add('hidden'); genesisScreen.classList.add('active');
+                ui.chatLog.innerHTML = ''; addLog(`--- Chronicle Resumed from Save ---`, "System", "system-info");
+                const history = JSON.parse(loadedState.chat_history);
+                const gmName = dynamicGameState.personas.find(p => p.actor_id === dynamicGameState.gmPersonaId)?.name || 'Director';
+                for (const entry of history) {
+                    const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry';
+                    if (entry.role === 'assistant') { entryDiv.innerHTML = `<strong class="gm">${gmName}:</strong> <span>${entry.content.narration}</span>`; }
+                    else { const content = entry.content; let author = 'User'; let authorClass = 'user'; const playerPrefix = `${dynamicGameState.playerSideName.toUpperCase()} ACTION`; const opponentPrefix = `${(dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName).toUpperCase()} ACTIONS`; if (content.startsWith(playerPrefix)) { author = dynamicGameState.playerSideName; authorClass = 'player-side'; } else if (content.startsWith(opponentPrefix)) { author = (dynamicGameState.sandboxOpponentName || dynamicGameState.opponentSideName); authorClass = 'opponent-side'; } entryDiv.innerHTML = `<strong class="${authorClass}">${author}:</strong> <span>${content.replace(/<[^>]*>/g, "")}</span>`; }
+                    ui.chatLog.appendChild(entryDiv);
+                }
+                ui.chatLog.scrollTop = ui.chatLog.scrollHeight;
+                dynamicGameState.turnPhase = 'player_side_input'; toggleCompetitiveInputOverlay(true); addLog("Your turn. What do you do next?", "System", "system-info");
+            };
+            
+            const startNewGame = () => {
+                dynamicGameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: dynamicGameState.personas, turnPhase: 'player_side_input', playerSideInputBuffer: '', opponentSideInputBuffer: '', gameMode: 'sandbox', isListening: false, gmPersonaId: null, currentRound: 0, playerHP: 0, opponentHP: 0, gameOver: false, sandboxOpponentName: null, latestImageB64: null };
+                ui.chatLog.innerHTML = '';
+                genesisScreen.classList.remove('active'); competitiveInputOverlay.classList.add('hidden'); creationScreen.classList.remove('active'); creationScreen.classList.add('hidden'); hubScreen.classList.add('active');
+                userInputPlayerSide.value = ''; userInputOpponentSide.value = ''; sandboxOpponentDescriptionInput.value = '';
+                ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.gmSelectionGroup.classList.remove('hidden'); directorConflictGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Dynamic Narrative Setup";
+                populateGmSelector();
+            };
+
+            async function populateGmSelector() {
+                ui.gmSelector.innerHTML = '';
+                const gmPersonas = dynamicGameState.personas.filter(p => p.role === 'gm');
+                if (gmPersonas.length === 0) { ui.selectedGmDisplay.textContent = "ERROR: NO DIRECTORS FOUND"; return; }
+                gmPersonas.forEach(persona => { const option = document.createElement('option'); option.value = persona.actor_id; option.textContent = persona.name; ui.gmSelector.appendChild(option); });
+                const conductorExists = gmPersonas.some(p => p.actor_id === 'The_Conductor');
+                if (conductorExists) { ui.gmSelector.value = 'The_Conductor'; } else if (gmPersonas.length > 0) { ui.gmSelector.value = gmPersonas[0].actor_id; }
+                ui.selectedGmDisplay.textContent = dynamicGameState.personas.find(p => p.actor_id === ui.gmSelector.value)?.name || "No Director";
+            }
+            
+            async function initializeUIAndData() {
                 ui = { backgroundCanvas: document.getElementById('background-canvas'), saveImageBtn: document.getElementById('save-image-btn'), chatLog: document.getElementById('chat-log-rpg'), loaderOverlay: document.getElementById('loading-overlay'), loaderText: document.getElementById('loader-text-rpg'), prompt: document.getElementById('prompt-rpg'), playerSideNameInput: document.getElementById('player-side-name-input'), opponentSideNameInput: document.getElementById('opponent-side-name-input'), initialPlayerSidePrompt: document.getElementById('initial-player-side-prompt'), initialOpponentSidePrompt: document.getElementById('initial-opponent-side-prompt'), startBtn: document.getElementById('start-btn-rpg'), selectedGmDisplay: document.getElementById('selected-gm-display'), initialPlayerSideLabel: document.getElementById('initial-player-side-label'), initialOpponentSidePromptFormGroup: document.getElementById('initial-opponent-side-prompt-form-group'), opponentSideNameFormGroup: document.getElementById('opponent-side-name-form-group'), gmSelector: document.getElementById('gm-selector'), gmSelectionGroup: document.getElementById('gm-selection-group'), modeTitle: document.getElementById('mode-title') };
 
                 // Step 1: Attach all event listeners immediately so the UI is always responsive.
@@ -297,9 +510,6 @@
                         alert("Could not connect to the GlassICE server. The creation screen may not function correctly. Please refresh the page to try again.");
                     });
             }
-
-            // Fill in the rest of the functions as they were, they are correct
-            // ... (I've omitted the full function bodies here for brevity, but they should be pasted back in from your last working version)
             
             initializeUIAndData();
         });
