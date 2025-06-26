@@ -157,11 +157,8 @@
                 currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [],
                 gameMode: 'sandbox', latestImageB64: null, gameOver: false
             };
-
-            // Simplified UI element gathering
             const getEl = (id) => document.getElementById(id);
 
-            // --- Helper Functions ---
             const fetchAPI = async (endpoint, options = {}) => {
                 const response = await fetch(`${API_URL}${endpoint}`, options);
                 if (!response.ok) {
@@ -172,17 +169,7 @@
             };
 
             const typewriter = (el, txt) => new Promise(resolve => {
-                let i = 0;
-                el.innerHTML = "";
-                const interval = setInterval(() => {
-                    if (i < txt.length) {
-                        el.innerHTML += txt.charAt(i++);
-                        getEl('chat-log-rpg').scrollTop = getEl('chat-log-rpg').scrollHeight;
-                    } else {
-                        clearInterval(interval);
-                        resolve();
-                    }
-                }, 15);
+                let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); getEl('chat-log-rpg').scrollTop = getEl('chat-log-rpg').scrollHeight; } else { clearInterval(interval); resolve(); } }, 15);
             });
             
             const playAudio = (b64) => new Promise(resolve => {
@@ -197,14 +184,10 @@
             });
 
             const addLog = (content, author, className) => {
-                const entryDiv = document.createElement('div');
-                entryDiv.className = 'log-entry';
-                const authorStrong = document.createElement('strong');
-                authorStrong.className = className || 'gm';
-                authorStrong.textContent = `${author}:`;
+                const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry';
+                const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`;
                 const contentSpan = document.createElement('span');
-                entryDiv.appendChild(authorStrong);
-                entryDiv.appendChild(contentSpan);
+                entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan);
                 getEl('chat-log-rpg').appendChild(entryDiv);
                 return typewriter(contentSpan, content || '');
             };
@@ -222,11 +205,10 @@
                 }
             };
 
-            // --- Core Game Logic ---
-            const processTurn = async ({ message, formData, opponentMessage }) => {
+            const processTurn = async ({ message, opponentMessage }) => {
                 if (gameState.gameOver) return;
                 getEl('competitive-input-overlay').classList.add('hidden');
-                setLoading(true, formData ? "Transcribing Voice..." : "Processing Actions...");
+                setLoading(true, "Processing Actions...");
 
                 try {
                     await addLog(message, gameState.playerSideName, 'player-side');
@@ -263,6 +245,7 @@
                     updateBackgroundImage(data.response.image_b64);
                     
                     getEl('creation-screen-rpg').classList.remove('active');
+                    getEl('hub-screen').classList.remove('active');
                     getEl('genesis-screen').classList.add('active');
                     setLoading(false);
 
@@ -275,7 +258,6 @@
                 }
             };
             
-            // --- Initialization and Event Listeners ---
             const prepareSandbox = () => {
                 const body = { gameSettingPrompt: getEl('prompt-rpg').value.trim(), playerSideName: getEl('player-side-name-input').value.trim() || 'Player', initialPlayerSidePrompt: getEl('initial-player-side-prompt').value.trim(), selectedGmPersonaId: getEl('gm-selector').value, gameMode: 'sandbox', directorCanInitiateCombat: getEl('director-conflict-checkbox').checked };
                 if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt) return alert("Please describe the setting and your initial strategy.");
@@ -290,16 +272,15 @@
                 startChronicle(body);
             };
 
-            // Fetch initial data, THEN set up UI listeners
+            // Main App Initialization
             try {
                 const personas = await fetchAPI('/api/personas');
                 gameState.personas = personas;
                 const gmSelector = getEl('gm-selector');
                 gmSelector.innerHTML = '';
-                personas.filter(p => p.role === 'gm').forEach(p => { const opt = new Option(p.name, p.actor_id); gmSelector.add(opt); });
+                personas.filter(p => p.role === 'gm').forEach(p => gmSelector.add(new Option(p.name, p.actor_id)));
                 if (gmSelector.options.length > 0) gmSelector.value = 'The_Conductor';
 
-                // Now that data is loaded, set up the UI events
                 getEl('launch-sandbox-btn').addEventListener('click', () => { 
                     getEl('hub-screen').classList.remove('active'); 
                     getEl('creation-screen-rpg').classList.add('active'); 
@@ -328,7 +309,7 @@
                     e.preventDefault();
                     const playerMessage = getEl('user-input-player-side').value.trim();
                     if (!playerMessage) return;
-                    processTurn({ message: playerMessage });
+                    processTurn({ message: playerMessage, opponentMessage: getEl('user-input-opponent-side').value.trim() });
                 });
 
                 getEl('save-image-btn').addEventListener('click', () => {
