@@ -151,12 +151,10 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
+        // --- MODIFIED: The entire script is now wrapped in an async function for robust startup. ---
+        async function main() {
             const API_URL = "";
-            let gameState = {
-                currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [],
-                gameMode: 'sandbox', latestImageB64: null, gameOver: false
-            };
+            let gameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [], gameMode: 'sandbox', latestImageB64: null, gameOver: false };
             const getEl = (id) => document.getElementById(id);
 
             const fetchAPI = async (endpoint, options = {}) => {
@@ -174,13 +172,7 @@
             
             const playAudio = (b64) => new Promise(resolve => {
                 if (gameState.currentAudio) gameState.currentAudio.pause();
-                if (b64) {
-                    gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64);
-                    gameState.currentAudio.play().catch(e => resolve());
-                    gameState.currentAudio.onended = () => resolve();
-                } else {
-                    resolve();
-                }
+                if (b64) { gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); gameState.currentAudio.play().catch(e => resolve()); gameState.currentAudio.onended = () => resolve(); } else { resolve(); }
             });
 
             const addLog = (content, author, className) => {
@@ -209,21 +201,16 @@
                 if (gameState.gameOver) return;
                 getEl('competitive-input-overlay').classList.add('hidden');
                 setLoading(true, "Processing Actions...");
-
                 try {
                     await addLog(message, gameState.playerSideName, 'player-side');
-                    
                     const endpoint = `/api/dynamic-narrative/${gameState.currentSceneId}/turn`;
                     const payload = JSON.stringify({ playerSideMessage: message, opponentSideMessage });
                     const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload };
-                    
                     const data = await fetchAPI(endpoint, options);
                     Object.assign(gameState, data);
                     updateBackgroundImage(data.response.image_b64);
-                    
                     await addLog(data.response.narration, gameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
                     await playAudio(data.response.audio_base_64);
-
                 } catch (e) {
                     console.error("Error during turn processing", e);
                     addLog(`Turn failed: ${e.message}`, "System", "system-error");
@@ -241,14 +228,11 @@
                 try {
                     const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     Object.assign(gameState, data);
-                    
                     updateBackgroundImage(data.response.image_b64);
-                    
                     getEl('creation-screen-rpg').classList.remove('active');
                     getEl('hub-screen').classList.remove('active');
                     getEl('genesis-screen').classList.add('active');
                     setLoading(false);
-
                     await addLog(data.response.narration, gameState.personas.find(p => p.actor_id === data.character)?.name || 'Director');
                     await playAudio(data.response.audio_base_64);
                     getEl('competitive-input-overlay').classList.remove('hidden');
@@ -272,15 +256,18 @@
                 startChronicle(body);
             };
 
-            // Main App Initialization
             try {
+                // Fetch initial data first
                 const personas = await fetchAPI('/api/personas');
                 gameState.personas = personas;
+                
+                // Then, populate the UI
                 const gmSelector = getEl('gm-selector');
                 gmSelector.innerHTML = '';
                 personas.filter(p => p.role === 'gm').forEach(p => gmSelector.add(new Option(p.name, p.actor_id)));
                 if (gmSelector.options.length > 0) gmSelector.value = 'The_Conductor';
 
+                // THEN, attach event listeners now that the app is ready
                 getEl('launch-sandbox-btn').addEventListener('click', () => { 
                     getEl('hub-screen').classList.remove('active'); 
                     getEl('creation-screen-rpg').classList.add('active'); 
@@ -321,10 +308,11 @@
                 });
 
             } catch(e) {
-                alert("Could not connect to the GlassICE server. Please ensure the server is running and refresh the page.");
+                alert("Could not connect to the GlassICE server. Please ensure the server is running and refresh the page. Error: " + e.message);
                 console.error("Initialization failed:", e);
             }
-        });
+        }
+        document.addEventListener('DOMContentLoaded', main);
     </script>
 </body>
 </html>
