@@ -7,11 +7,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fetchAPI = async (endpoint, options = {}) => { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error || `HTTP Error: ${response.status}`); } return response.json(); };
     const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++).replace(/\n/g, '<br>'); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
 
-    // MODIFIED: Added the missing setLoading function definition.
     const setLoading = (isLoading, text = 'Loading...') => {
         ui.loadingOverlay.classList.toggle('hidden', !isLoading);
         if (isLoading) {
             ui.loaderTextRpg.textContent = text;
+        }
+    };
+
+    // --- NEW: Added the missing addLog function ---
+    const addLog = (text, speaker, styleClass = '') => {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'log-entry';
+        // Format text to handle newlines and simple markdown bolding
+        const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+        entryDiv.innerHTML = `<strong class="${styleClass}">${speaker}</strong><span>${formattedText}</span>`;
+        ui.chatLogRpg.appendChild(entryDiv);
+        ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight;
+    };
+
+    // --- NEW: Added the missing updateBackgroundImage function ---
+    const updateBackgroundImage = (imageB64) => {
+        const body = document.body;
+        ui.saveImageBtn.disabled = !imageB64;
+        if (imageB64) {
+            body.style.backgroundImage = `url(data:image/jpeg;base64,${imageB64})`;
+            body.classList.add('image-cover');
+            ui.saveImageBtn.onclick = () => {
+                const link = document.createElement('a');
+                link.href = `data:image/jpeg;base64,${imageB64}`;
+                link.download = `glassice-chronicle-${Date.now()}.jpg`;
+                link.click();
+            };
+        } else {
+            body.style.backgroundImage = '';
+            body.classList.remove('image-cover');
+            ui.saveImageBtn.onclick = null;
         }
     };
 
@@ -73,7 +103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // MODIFIED: Disabled button on press and re-enabled on error to prevent spamming.
     const startChronicle = async (body) => {
         ui.startBtnRpg.disabled = true;
         setLoading(true, "Preparing Chronicle...");
@@ -89,7 +118,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
     
-    // MODIFIED: Disabled button during turn resolution.
     const submitTurn = async () => {
         let payload;
         if (gameState.gameMode === 'competitive') {
@@ -120,7 +148,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // --- MODIFIED: Prepare functions now include visual descriptions ---
     const prepareSandbox = () => {
         const body = {
             gameSettingPrompt: ui.promptRpg.value.trim(),
@@ -176,7 +203,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ui.showPanelBtn.addEventListener('click', () => { ui.inputOverlayContainer.classList.remove('input-overlay--hidden'); ui.showPanelBtn.classList.add('hidden'); });
     };
     
-    // --- MODIFIED: Show/hide visual description fields based on mode ---
     const setupCreationScreen = (mode) => {
         const isSandbox = mode === 'sandbox';
         showScreen('creation-screen-rpg');
