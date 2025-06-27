@@ -85,7 +85,27 @@ SIMULTANEOUS ACTIONS:
 - Faction 2's Action: "${action2}"
 Resolve the turn.`; try { const completion = await openai.chat.completions.create({ model: "gpt-4o", messages: [ { "role": "system", content: system_prompt }, ...history, { "role": "user", content: turnPrompt } ], response_format: { type: "json_object" }, }); const response = JSON.parse(completion.choices[0].message.content); if (!response.narration || response.faction1_hp_change === undefined || response.faction2_hp_change === undefined) { throw new Error("AI Referee response was malformed."); } return response; } catch (error) { console.error("[AI-REFEREE ERROR]", error); throw new Error("The AI Referee failed to resolve the turn."); } }
 async function checkForConflict(narration) { const system_prompt = `You are an impartial Event Arbiter in a text-based RPG. Your sole task is to read a piece of narrative text and determine if a direct, unavoidable conflict has just begun. A conflict requires a clear threat and hostile intent. Simple tension or the presence of weapons is NOT a conflict. An attack being launched IS a conflict. You MUST respond ONLY with a single JSON object with the following keys: - "is_conflict": (boolean) true if a fight has just started, otherwise false. - "opponent_name": (string) If is_conflict is true, give a short, descriptive name for the opposition (e.g., "Tavern Brawlers", "City Guards", "Alpha Wolf"). If false, this should be an empty string "". - "reason": (string) A brief explanation for your decision.`; try { const completion = await openai.chat.completions.create({ model: "gpt-4o", messages: [ { "role": "system", content: system_prompt }, { "role": "user", content: narration } ], response_format: { type: "json_object" }, }); return JSON.parse(completion.choices[0].message.content); } catch (error) { console.error("[AI-ARBITER ERROR]", error); return { is_conflict: false, opponent_name: "", reason: "Arbiter AI failed." }; } }
-async function fetchNarration(prompt, history = []) { const system_prompt = `You are a master storyteller and game master. Continue the story based on the user's action. Your response must be a single JSON object with one key: "narration".`; try { const completion = await openai.chat.completions.create({ model: "gpt-4o", messages: [ ...history, { role: "user", content: prompt } ], response_format: { type: "json_object" }, }); return JSON.parse(completion.choices[0].message.content).narration; } catch (error) { console.error("[AI-NARRATOR ERROR]", error); throw new Error("The AI Director failed to respond."); } }
+
+// MODIFIED: fetchNarration now correctly includes its system prompt in the API call.
+async function fetchNarration(prompt, history = []) {
+    const system_prompt = `You are a master storyteller and game master. Continue the story based on the user's action. Your response must be a single JSON object with one key: "narration".`;
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: system_prompt }, // This line fixes the error
+                ...history,
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" },
+        });
+        return JSON.parse(completion.choices[0].message.content).narration;
+    } catch (error) {
+        console.error("[AI-NARRATOR ERROR]", error);
+        throw new Error("The AI Director failed to respond.");
+    }
+}
+
 async function generateAudio(text) { if (!text || !process.env.OPENAI_API_KEY) { return null; } try { const mp3 = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text, }); return Buffer.from(await mp3.arrayBuffer()).toString('base64'); } catch (error) { console.error("[AUDIO] OpenAI TTS generation failed:", error); return null; } }
 
 // --- Endpoints ---
