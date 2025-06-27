@@ -1,4 +1,4 @@
-// server.js - WITH A DEBUGGING ROUTE TO INSPECT THE FILE SYSTEM
+// server.js - FINAL PRODUCTION VERSION
 
 const express = require('express');
 const cors = require('cors');
@@ -7,38 +7,23 @@ const OpenAI = require('openai');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const path = require('path');
-const fs = require('fs'); // <-- ADDED THIS LINE FOR DEBUGGING
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+
+// --- THIS IS THE FINAL FIX ---
+// This tells Express to look inside the 'public' folder for index.html.
+app.use(express.static('public'));
+// ----------------------------
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
 const PORT = process.env.PORT || 3001;
 
 let activeScenes = {};
-
-// --- THIS IS THE NEW DEBUGGING CODE ---
-// When we visit /debug-files, it will show us what's in the directory.
-app.get('/debug-files', (req, res) => {
-  const directoryPath = path.join(__dirname);
-  fs.readdir(directoryPath, (err, files) => {
-    if (err) {
-      return res.status(500).send('Unable to scan directory: ' + err);
-    } 
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify({
-        message: "Files in the server's root directory:",
-        directory: directoryPath,
-        files: files
-    }, null, 2));
-  });
-});
-// ------------------------------------
 
 /**
  * AI #1: The Director/Storyteller
