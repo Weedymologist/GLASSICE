@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fetchAPI = async (endpoint, options = {}) => { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error || `HTTP Error: ${response.status}`); } return response.json(); };
     const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++).replace(/\n/g, '<br>'); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
 
+    // MODIFIED: Added the missing setLoading function definition.
+    const setLoading = (isLoading, text = 'Loading...') => {
+        ui.loadingOverlay.classList.toggle('hidden', !isLoading);
+        if (isLoading) {
+            ui.loaderTextRpg.textContent = text;
+        }
+    };
+
     const playAudio = (b64) => new Promise(resolve => { if (gameState.currentAudio) gameState.currentAudio.pause(); if (b64) { gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); gameState.currentAudio.play().catch(e => { console.warn("Audio play interrupted:", e); resolve(); }); gameState.currentAudio.onended = () => resolve(); gameState.currentAudio.onerror = (e) => { console.error("Audio playback error:", e); resolve(); }; } else { resolve(); } });
     
     const updateStatusEffects = (playerEffects, opponentEffects) => {
@@ -65,7 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    // MODIFIED: Disabled button on press and re-enabled on error to prevent spamming.
     const startChronicle = async (body) => {
+        ui.startBtnRpg.disabled = true;
         setLoading(true, "Preparing Chronicle...");
         try {
             const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -73,11 +83,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateUIFromState(data);
         } catch (e) {
             alert("Failed to start chronicle: " + e.message);
+            ui.startBtnRpg.disabled = false; // Re-enable on error
         } finally {
             setLoading(false);
         }
     };
     
+    // MODIFIED: Disabled button during turn resolution.
     const submitTurn = async () => {
         let payload;
         if (gameState.gameMode === 'competitive') {
@@ -90,6 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!action) return alert('Please describe what happens next.');
             payload = { playerAction: action };
         }
+        ui.submitTurnBtn.disabled = true;
         setLoading(true, "Resolving Turn...");
         document.querySelectorAll('#input-fields-container textarea').forEach(ta => ta.disabled = true);
         try {
@@ -102,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!gameState.gameOver) {
                  document.querySelectorAll('#input-fields-container textarea').forEach(ta => { ta.disabled = false; ta.value = ''; });
                  document.querySelector('#input-fields-container textarea').focus();
+                 ui.submitTurnBtn.disabled = false;
             }
         }
     };
