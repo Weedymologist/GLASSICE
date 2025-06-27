@@ -3,183 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlassICE // Chronicle Engine v29.1 (Final)</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <style>:root { --gunmetal-dark: #1a1f26; --gunmetal-med: #2a313b; --gunmetal-light: #3a424d; --neon-cyan: #00f6ff; --neon-red: #ff3a6d; --neon-yellow: #fff03a; --user-accent: #00ffaa; --opponent-accent: #ff99ff; --text-primary: #e0e1f0; --font-heading: 'Orbitron', sans-serif; --font-body: 'Roboto Mono', monospace; } * { box-sizing: border-box; margin: 0; padding: 0; } @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes bootSequence { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } body { background-color: var(--gunmetal-dark); background-image: radial-gradient(var(--gunmetal-light) 1px, transparent 1px); background-size: 25px 25px; color: var(--text-primary); font-family: var(--font-body); display: flex; align-items: center; justify-content: center; height: 100vh; width: 100vw; overflow: hidden; } body.image-cover { background-size: cover !important; background-position: center center !important; transition: background-image 1s ease-in-out; } .screen { width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; animation: fadeIn 0.8s ease-out; } .screen.active { display: flex; } .hidden { display: none !important; } .panel { background-color: rgba(42, 49, 59, 0.85); border: 1px solid var(--gunmetal-light); backdrop-filter: blur(10px); position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 0 20px rgba(0,0,0,0.6); } .panel-corner { position: absolute; width: 20px; height: 20px; border-color: var(--neon-cyan); border-style: solid; opacity: 0.7; } .panel-corner.top-left { top: -5px; left: -5px; border-width: 2px 0 0 2px; } .panel-corner.top-right { top: -5px; right: -5px; border-width: 2px 2px 0 0; } .panel-corner.bottom-left { bottom: -5px; left: -5px; border-width: 0 0 2px 2px; } .panel-corner.bottom-right { bottom: -5px; right: -5px; border-width: 0 2px 2px 0; } .hub-container { text-align: center; padding: 40px; } .hub-header h1 { font-family: var(--font-heading); color: var(--neon-cyan); font-size: 3em; letter-spacing: 5px; text-shadow: 0 0 10px var(--neon-cyan), 0 0 15px var(--neon-cyan); margin-bottom: 10px; } .hub-header h2 { font-size: 1em; font-weight: 400; color: var(--text-primary); opacity: .8; margin-bottom: 50px; } .mode-selection button { display: block; margin: 25px auto; width: 400px; padding: 20px; font-size: 1.2em; } .creation-container { width: 100%; max-width: 900px; padding: 30px; max-height: 90vh; overflow-y: auto; } .creation-header h3 { font-family: var(--font-heading); font-size: 1.5em; text-align: center; margin-bottom: 30px; color: var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan); } .form-group { margin-bottom: 20px; } .form-group label { display: block; margin-bottom: 10px; font-weight: 700; color: var(--neon-cyan); } textarea, select, input[type=text] { width: 100%; padding: 12px; background: var(--gunmetal-dark); color: var(--text-primary); border: 1px solid var(--gunmetal-light); font-family: inherit; font-size: 0.95em; resize: vertical; transition: all 0.2s ease; } textarea:focus, select:focus, input[type=text]:focus { outline: none; border-color: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); } .creation-footer { text-align: center; margin-top: 30px; } 
-    /* --- NEW: Health Bar Styles --- */
-    #genesis-screen { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 20px; padding-bottom: 160px; /* Space for input overlay */ }
-    #health-status-bar { width: 100%; max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; gap: 20px; font-family: var(--font-heading); background: rgba(26, 31, 38, 0.8); padding: 10px 20px; border: 1px solid var(--gunmetal-light); backdrop-filter: blur(5px); }
-    .health-display { flex: 1; }
-    .health-display .side-name { font-size: 1em; margin-bottom: 8px; }
-    .health-display .side-name.player { color: var(--user-accent); text-shadow: 0 0 5px var(--user-accent); }
-    .health-display .side-name.opponent { color: var(--opponent-accent); text-shadow: 0 0 5px var(--opponent-accent); text-align: right;}
-    .health-bar-outer { background: var(--gunmetal-dark); border: 1px solid var(--gunmetal-light); height: 20px; padding: 2px; }
-    .health-bar-inner { height: 100%; width: 100%; transition: width 0.5s ease-out; }
-    .health-bar-inner.player { background: linear-gradient(90deg, var(--user-accent), #00aaff); box-shadow: 0 0 8px var(--user-accent); }
-    .health-bar-inner.opponent { background: linear-gradient(90deg, var(--opponent-accent), #ff55cc); box-shadow: 0 0 8px var(--opponent-accent); }
-    /* --- END Health Bar Styles --- */
-    .log-overlay { flex: 1; overflow-y: scroll; padding-right: 15px; width: 100%; max-width: 900px; margin: 0 auto; } .log-overlay::-webkit-scrollbar { width: 6px; } .log-overlay::-webkit-scrollbar-track { background: var(--gunmetal-med); } .log-overlay::-webkit-scrollbar-thumb { background: var(--neon-cyan); box-shadow: 0 0 5px var(--neon-cyan); } .log-entry { margin-bottom: 15px; line-height: 1.6; background: rgba(26, 31, 38, 0.7); padding: 12px; border-left: 3px solid var(--gunmetal-light); animation: bootSequence 0.5s forwards; } .log-entry strong { font-weight: 700; padding-right: 10px; color: var(--neon-cyan); display: block; margin-bottom: 5px; } .log-entry strong.player-side { color: var(--user-accent); } .log-entry strong.opponent-side { color: var(--opponent-accent); } .log-entry strong.system-info { color: var(--neon-yellow); } .log-entry strong.system-error { color: var(--neon-red); } #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26, 31, 38, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); } #loading-overlay .loader { border: 4px solid var(--gunmetal-light); border-top: 4px solid var(--neon-cyan); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; box-shadow: 0 0 10px var(--neon-cyan); } #competitive-input-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; } .input-modal-competitive { width: 100%; max-width: 900px; padding: 20px; } #turn-status { font-family: var(--font-heading); margin-bottom: 15px; font-size: 1.2em; text-align: center; } .chat-form textarea { height: 80px; font-size: 1em; margin-bottom: 10px; } .chat-form-buttons { display: flex; gap: 10px; width: 100%; justify-content: flex-end; } .chat-form-buttons button { flex-grow: 1; } .chat-form-buttons button.icon-button { flex-grow: 0; padding: 10px; font-size: 1.2em; } #submit-turn-btn { flex-grow: 2; } button { padding: 12px 28px; background-color: transparent; color: var(--neon-cyan); font-family: var(--font-heading); cursor: pointer; border: 2px solid var(--neon-cyan); font-size: 1em; transition: all .2s ease; text-shadow: 0 0 5px var(--neon-cyan); } button:hover:not(:disabled) { background-color: var(--neon-cyan); color: var(--gunmetal-dark); box-shadow: 0 0 20px var(--neon-cyan); } button:disabled { opacity: .4; cursor: not-allowed; filter: grayscale(50%); }</style>
+    <title>GlassICE // Chronicle Engine v34.0 (Simul-Action UI)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="hub-screen" class="screen active"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v29.1</h2></header><div class="mode-selection"><button id="launch-sandbox-btn">Launch Sandbox Chronicle</button><button id="launch-competitive-btn">Launch Competitive Chronicle</button><button id="load-chronicle-btn" disabled>Load Saved Chronicle (Offline)</button></div></div></div>
-    <div id="creation-screen-rpg" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3 id="mode-title">Dynamic Narrative Setup</h3></header><main class="creation-form"><section class="form-group"><label for="prompt-rpg">Describe the Game's Setting & Initial Conflict:</label><textarea id="prompt-rpg" placeholder="A desolate, wind-swept plain..."></textarea></section><section class="form-group"><label for="player-side-name-input" style="color: var(--user-accent);">Your Side's Name:</label><input type="text" id="player-side-name-input" placeholder="E.g., The Rebel Alliance"></section><section class="form-group" id="opponent-side-name-form-group"><label for="opponent-side-name-input" style="color: var(--opponent-accent);">Opponent's Side Name:</label><input type="text" id="opponent-side-name-input" placeholder="E.g., The Galactic Empire"></section><section class="form-group"><label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Your Side's Opening Strategy:</label><textarea id="initial-player-side-prompt" placeholder="Your side's characters and actions..."></textarea></section><section class="form-group" id="initial-opponent-side-prompt-form-group"><label for="initial-opponent-side-prompt" style="color: var(--opponent-accent);" id="initial-opponent-side-label">Opponent's Side Opening Strategy:</label><textarea id="initial-opponent-side-prompt" placeholder="Opponent's characters and actions..."></textarea></section><section class="form-group" id="gm-selection-group"><label for="gm-selector">Select Director:</label><select id="gm-selector"></select></section></main><footer class="creation-footer"><button id="start-btn-rpg">Prepare Chronicle</button></footer></div></div>
+    <div id="hub-screen" class="screen active"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v34.0</h2></header><div class="mode-selection"><button id="launch-sandbox-btn">Launch Sandbox Chronicle</button><button id="launch-competitive-btn">Launch Competitive Chronicle</button><button id="load-chronicle-btn">Load Saved Chronicle</button></div></div></div>
     
-    <!-- --- MODIFIED: Added Health Bar and re-structured for flexbox --- -->
+    <div id="creation-screen-rpg" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3 id="mode-title">Dynamic Narrative Setup</h3></header><main class="creation-form"><section class="form-group"><label id="game-setting-label" for="prompt-rpg">Describe the Shared Setting & Conflict:</label><textarea id="prompt-rpg" placeholder="E.g., A rain-lashed cyberpunk metropolis. Two rival mega-corporations are on the brink of open war..."></textarea></section><section class="form-group"><label for="player-side-name-input" style="color: var(--user-accent);">Faction 1 Name:</label><input type="text" id="player-side-name-input" placeholder="E.g., The Cygnus Syndicate"></section><section class="form-group" id="opponent-side-name-form-group"><label for="opponent-side-name-input" style="color: var(--opponent-accent);">Faction 2 Name:</label><input type="text" id="opponent-side-name-input" placeholder="E.g., OmniCorp Security"></section><section class="form-group"><label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Faction 1 Briefing:</label><textarea id="initial-player-side-prompt" placeholder="Describe your forces, leader, and objective..."></textarea></section><section class="form-group" id="initial-opponent-side-prompt-form-group"><label for="initial-opponent-side-prompt" style="color: var(--opponent-accent);" id="initial-opponent-side-label">Faction 2 Briefing:</label><textarea id="initial-opponent-side-prompt" placeholder="Describe the opposing forces and their objective..."></textarea></section></main><footer class="creation-footer"><button id="start-btn-rpg">Prepare Chronicle</button></footer></div></div>
+    
     <div id="genesis-screen" class="screen hidden">
         <div id="health-status-bar" class="hidden">
             <div class="health-display">
-                <div class="side-name player" id="health-player-name">Player</div>
+                <div class="side-name player" id="health-player-name">Faction 1</div>
                 <div class="health-bar-outer"><div class="health-bar-inner player" id="health-player-bar"></div></div>
+                <div class="status-effects-container" id="player-effects-container"></div>
             </div>
             <div class="health-display">
-                <div class="side-name opponent" id="health-opponent-name">Opponent</div>
+                <div class="side-name opponent" id="health-opponent-name">Faction 2</div>
                 <div class="health-bar-outer"><div class="health-bar-inner opponent" id="health-opponent-bar"></div></div>
+                <div class="status-effects-container opponent" id="opponent-effects-container"></div>
             </div>
         </div>
         <div class="log-overlay" id="chat-log-rpg"></div>
         <div id="loading-overlay" class="hidden"><div class="loader"></div><p class="loading-text" id="loader-text-rpg">Loading...</p></div>
-        <div id="competitive-input-overlay" class="hidden">
+        
+        <!-- MODIFIED: The entire input overlay is now a container for different modes -->
+        <div id="input-overlay-container">
             <div class="input-modal-competitive panel">
                 <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
-                <h2 id="turn-status">Turn Start: Your Action</h2>
-                <div class="player-side-input">
-                    <form id="chat-form-player-side" class="chat-form">
-                        <textarea id="user-input-player-side" placeholder="Describe your actions for this turn..." autocomplete="off"></textarea>
-                        <div class="chat-form-buttons">
-                            <button type="button" id="save-state-btn" class="icon-button" title="Save Game State (NYI)">💾</button>
-                            <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button>
-                            <button type="submit" id="submit-turn-btn">Submit Turn</button>
-                        </div>
-                    </form>
-                </div>
+                <h2 id="turn-status">Turn Start: Input Actions</h2>
+                <form id="chat-form" class="chat-form">
+                    <!-- This container will hold either the single or dual input fields -->
+                    <div id="input-fields-container"></div> 
+                    
+                    <div class="chat-form-buttons">
+                        <button type="button" id="ptt-btn" class="icon-button" title="Push to Talk (or hold Alt key)">🎤</button>
+                        <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button>
+                        <button type="submit" id="submit-turn-btn">Resolve Turn</button>
+                        <button type="button" id="hide-panel-btn" class="icon-button" title="Hide Panel">▼</button>
+                    </div>
+                </form>
             </div>
+        </div>
+        <button id="show-panel-btn" class="hidden" title="Show Input Panel">▲</button>
+    </div>
+
+    <div id="load-game-modal" class="screen hidden">
+        <div class="creation-container panel">
+             <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
+            <header class="creation-header"><h3>Load Chronicle</h3></header>
+            <main id="load-game-list" class="creation-form"></main>
+            <footer class="creation-footer">
+                <button id="close-load-modal-btn">Back to Main Menu</button>
+            </footer>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const API_URL = "";
-            let gameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [], gameMode: 'sandbox', latestImageB64: null, gameOver: false };
-            const ui = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(el => [el.id.replace(/-(\w)/g, (m, p) => p.toUpperCase()), el]));
-            const allScreens = document.querySelectorAll('.screen');
-            const showScreen = (screenId) => { allScreens.forEach(screen => { if (screen.id === screenId) { screen.classList.add('active'); screen.classList.remove('hidden'); } else { screen.classList.remove('active'); screen.classList.add('hidden'); } }); };
-            const fetchAPI = async (endpoint, options = {}) => { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error || `HTTP Error: ${response.status}`); } return response.json(); };
-            const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++).replace(/\n/g, '<br>'); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
-
-            const playAudio = (b64) => new Promise(resolve => { if (gameState.currentAudio) gameState.currentAudio.pause(); if (b64) { gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); gameState.currentAudio.play().catch(e => { console.warn("Audio play interrupted:", e); resolve(); }); gameState.currentAudio.onended = () => resolve(); gameState.currentAudio.onerror = (e) => { console.error("Audio playback error:", e); resolve(); }; } else { resolve(); } });
-            
-            // --- NEW: Function to update health display ---
-            const updateHealthDisplay = (playerHP, opponentHP) => {
-                if (gameState.gameMode !== 'competitive') {
-                    ui.healthStatusBar.classList.add('hidden');
-                    return;
-                }
-                ui.healthStatusBar.classList.remove('hidden');
-                ui.healthPlayerName.textContent = gameState.playerSideName;
-                ui.healthOpponentName.textContent = gameState.opponentSideName;
-                ui.healthPlayerBar.style.width = `${playerHP}%`;
-                ui.healthOpponentBar.style.width = `${opponentHP}%`;
-            };
-
-            const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLogRpg.appendChild(entryDiv); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; return typewriter(contentSpan, content || ''); };
-            const setLoading = (isLoading, message = "Processing...") => { ui.loaderTextRpg.textContent = message; ui.loadingOverlay.classList.toggle('hidden', !isLoading); ui.submitTurnBtn.disabled = isLoading; };
-            const updateBackgroundImage = (b64_image) => { if (b64_image) { document.body.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`; document.body.classList.add('image-cover'); gameState.latestImageB64 = b64_image; ui.saveImageBtn.disabled = false; } else { document.body.classList.remove('image-cover'); document.body.style.backgroundImage = ''; } };
-            
-            const processApiResponse = (data) => {
-                updateBackgroundImage(data.response.image_b64);
-                if (data.response.turn_summary) {
-                    addLog(data.response.turn_summary, 'Tactical Summary', 'system-info');
-                }
-                addLog(data.response.narration, 'Director');
-                setTimeout(() => playAudio(data.response.audio_base_64), 1000);
-            };
-
-            const startChronicle = async (body) => {
-                ui.startBtnRpg.disabled = true; ui.startBtnRpg.textContent = "GENERATING...";
-                setLoading(true, "Preparing Chronicle...");
-                try {
-                    const data = await fetchAPI('/api/dynamic-narrative/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                    Object.assign(gameState, data);
-                    updateBackgroundImage(data.response.image_b64);
-                    showScreen('genesis-screen');
-                    setLoading(false);
-                    updateHealthDisplay(data.playerHP, data.opponentHP);
-                    
-                    addLog(data.response.narration, 'Director');
-                    setTimeout(() => playAudio(data.response.audio_base_64), 1500);
-                    
-                    ui.competitiveInputOverlay.classList.remove('hidden');
-                } catch (e) {
-                    setLoading(false); alert("Failed to start chronicle: " + e.message);
-                    ui.startBtnRpg.disabled = false; ui.startBtnRpg.textContent = "Prepare Chronicle";
-                }
-            };
-            
-            // --- NEW: Function to handle submitting a turn ---
-            const submitTurn = async () => {
-                const playerAction = ui.userInputPlayerSide.value.trim();
-                if (!playerAction) return alert('Please describe your action for the turn.');
-                
-                setLoading(true, "Resolving Turn...");
-                ui.userInputPlayerSide.value = '';
-                ui.userInputPlayerSide.disabled = true;
-                
-                try {
-                    const data = await fetchAPI(`/api/dynamic-narrative/${gameState.currentSceneId}/turn`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ playerAction })
-                    });
-                    
-                    updateHealthDisplay(data.playerHP, data.opponentHP);
-                    processApiResponse(data);
-                    
-                    if (data.gameOver) {
-                        gameState.gameOver = true;
-                        ui.turnStatus.textContent = "BATTLE CONCLUDED";
-                        ui.submitTurnBtn.disabled = true;
-                        ui.userInputPlayerSide.placeholder = "The chronicle has ended.";
-                        addLog("The game is over. No further actions can be taken.", "SYSTEM", "system-info");
-                    }
-
-                } catch (e) {
-                    addLog(`Error resolving turn: ${e.message}`, 'SYSTEM ERROR', 'system-error');
-                } finally {
-                    setLoading(false);
-                    if (!gameState.gameOver) {
-                         ui.userInputPlayerSide.disabled = false;
-                         ui.userInputPlayerSide.focus();
-                    }
-                }
-            };
-
-            // --- MODIFIED: prepareCompetitive now sends all required data ---
-            const prepareSandbox = () => { const body = { gameSettingPrompt: ui.promptRpg.value.trim(), playerSideName: ui.playerSideNameInput.value.trim() || 'Player', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox' }; if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt) return alert("Please describe the setting and your initial strategy."); gameState.playerSideName = body.playerSideName; gameState.gameMode = 'sandbox'; startChronicle(body); };
-            const prepareCompetitive = () => { const body = { gameSettingPrompt: ui.promptRpg.value.trim(), playerSideName: ui.playerSideNameInput.value.trim() || 'Player', opponentSideName: ui.opponentSideNameInput.value.trim() || 'Opponent', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), gameMode: 'competitive' }; if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) return alert("Please complete all fields for competitive mode."); gameState.playerSideName = body.playerSideName; gameState.opponentSideName = body.opponentSideName; gameState.gameMode = 'competitive'; startChronicle(body); };
-            
-            try {
-                const personas = await fetchAPI('/api/personas');
-                gameState.personas = personas;
-                ui.gmSelector.innerHTML = '';
-                personas.filter(p => p.role === 'gm').forEach(p => ui.gmSelector.add(new Option(p.name, p.actor_id)));
-                if (ui.gmSelector.options.length > 0) ui.gmSelector.value = 'The_Conductor';
-                ui.launchSandboxBtn.addEventListener('click', () => { showScreen('creation-screen-rpg'); ui.opponentSideNameFormGroup.classList.add('hidden'); ui.initialOpponentSidePromptFormGroup.classList.add('hidden'); ui.modeTitle.textContent = "Sandbox Narrative Setup"; });
-                ui.launchCompetitiveBtn.addEventListener('click', () => { showScreen('creation-screen-rpg'); ui.opponentSideNameFormGroup.classList.remove('hidden'); ui.initialOpponentSidePromptFormGroup.classList.remove('hidden'); ui.modeTitle.textContent = "Competitive Narrative Setup"; ui.gmSelectionGroup.classList.add('hidden'); });
-                ui.startBtnRpg.addEventListener('click', () => { (ui.modeTitle.textContent.includes('Sandbox')) ? prepareSandbox() : prepareCompetitive(); });
-
-                // --- NEW: Event listener for the turn submission form ---
-                ui.chatFormPlayerSide.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    if (!gameState.gameOver) {
-                        submitTurn();
-                    }
-                });
-
-            } catch(e) {
-                alert("Could not connect to the GlassICE server. Please ensure the server is running and refresh the page.");
-                console.error("Initialization failed:", e);
-            }
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
