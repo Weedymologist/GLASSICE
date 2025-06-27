@@ -6,16 +6,22 @@ const dotenv = require('dotenv');
 const OpenAI = require('openai');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
+const path = require('path');
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 
+// --- THIS SECTION IS NOW CORRECTED ---
+// We define our API clients and PORT correctly here.
+// These values are read from your Render Environment Variables.
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
 const PORT = process.env.PORT || 3001;
+// ------------------------------------
 
 let activeScenes = {};
 
