@@ -3,65 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlassICE // Chronicle Engine v34.0 (Simul-Action UI)</title>
+    <title>GlassICE // Chronicle Engine v38.0 (Visual Consistency)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="hub-screen" class="screen active"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v34.0</h2></header><div class="mode-selection"><button id="launch-sandbox-btn">Launch Sandbox Chronicle</button><button id="launch-competitive-btn">Launch Competitive Chronicle</button><button id="load-chronicle-btn">Load Saved Chronicle</button></div></div></div>
+    <div id="hub-screen" class="screen active"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v38.0</h2></header><div class="mode-selection"><button id="launch-sandbox-btn">Launch Sandbox Chronicle</button><button id="launch-competitive-btn">Launch Competitive Chronicle</button><button id="load-chronicle-btn">Load Saved Chronicle</button></div></div></div>
     
-    <div id="creation-screen-rpg" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3 id="mode-title">Dynamic Narrative Setup</h3></header><main class="creation-form"><section class="form-group"><label id="game-setting-label" for="prompt-rpg">Describe the Shared Setting & Conflict:</label><textarea id="prompt-rpg" placeholder="E.g., A rain-lashed cyberpunk metropolis. Two rival mega-corporations are on the brink of open war..."></textarea></section><section class="form-group"><label for="player-side-name-input" style="color: var(--user-accent);">Faction 1 Name:</label><input type="text" id="player-side-name-input" placeholder="E.g., The Cygnus Syndicate"></section><section class="form-group" id="opponent-side-name-form-group"><label for="opponent-side-name-input" style="color: var(--opponent-accent);">Faction 2 Name:</label><input type="text" id="opponent-side-name-input" placeholder="E.g., OmniCorp Security"></section><section class="form-group"><label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Faction 1 Briefing:</label><textarea id="initial-player-side-prompt" placeholder="Describe your forces, leader, and objective..."></textarea></section><section class="form-group" id="initial-opponent-side-prompt-form-group"><label for="initial-opponent-side-prompt" style="color: var(--opponent-accent);" id="initial-opponent-side-label">Faction 2 Briefing:</label><textarea id="initial-opponent-side-prompt" placeholder="Describe the opposing forces and their objective..."></textarea></section></main><footer class="creation-footer"><button id="start-btn-rpg">Prepare Chronicle</button></footer></div></div>
-    
-    <div id="genesis-screen" class="screen hidden">
-        <div id="health-status-bar" class="hidden">
-            <div class="health-display">
-                <div class="side-name player" id="health-player-name">Faction 1</div>
-                <div class="health-bar-outer"><div class="health-bar-inner player" id="health-player-bar"></div></div>
-                <div class="status-effects-container" id="player-effects-container"></div>
-            </div>
-            <div class="health-display">
-                <div class="side-name opponent" id="health-opponent-name">Faction 2</div>
-                <div class="health-bar-outer"><div class="health-bar-inner opponent" id="health-opponent-bar"></div></div>
-                <div class="status-effects-container opponent" id="opponent-effects-container"></div>
-            </div>
-        </div>
-        <div class="log-overlay" id="chat-log-rpg"></div>
-        <div id="loading-overlay" class="hidden"><div class="loader"></div><p class="loading-text" id="loader-text-rpg">Loading...</p></div>
+    <!-- MODIFIED: Added Visual Description text areas -->
+    <div id="creation-screen-rpg" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3 id="mode-title">Dynamic Narrative Setup</h3></header><main class="creation-form"><section class="form-group"><label id="game-setting-label" for="prompt-rpg">Describe the Shared Setting & Conflict:</label><textarea id="prompt-rpg" placeholder="E.g., A rain-lashed cyberpunk metropolis. Two rival mega-corporations are on the brink of open war..."></textarea></section><section class="form-group"><label for="player-side-name-input" style="color: var(--user-accent);">Faction 1 Name:</label><input type="text" id="player-side-name-input" placeholder="E.g., The Cygnus Syndicate"></section><section class="form-group" id="opponent-side-name-form-group"><label for="opponent-side-name-input" style="color: var(--opponent-accent);">Faction 2 Name:</label><input type="text" id="opponent-side-name-input" placeholder="E.g., OmniCorp Security"></section><section class="form-group"><label for="initial-player-side-prompt" style="color: var(--user-accent);" id="initial-player-side-label">Faction 1 Briefing:</label><textarea id="initial-player-side-prompt" placeholder="Describe your forces, leader, and objective..."></textarea></section>
         
-        <!-- MODIFIED: The entire input overlay is now a container for different modes -->
-        <div id="input-overlay-container">
-            <div class="input-modal-competitive panel">
-                <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
-                <h2 id="turn-status">Turn Start: Input Actions</h2>
-                <form id="chat-form" class="chat-form">
-                    <!-- This container will hold either the single or dual input fields -->
-                    <div id="input-fields-container"></div> 
-                    
-                    <div class="chat-form-buttons">
-                        <button type="button" id="ptt-btn" class="icon-button" title="Push to Talk (or hold Alt key)">🎤</button>
-                        <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button>
-                        <button type="submit" id="submit-turn-btn">Resolve Turn</button>
-                        <button type="button" id="hide-panel-btn" class="icon-button" title="Hide Panel">▼</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        <button id="show-panel-btn" class="hidden" title="Show Input Panel">▲</button>
-    </div>
+        <!-- NEW: Faction 1 Visuals -->
+        <section class="form-group" id="faction1-visuals-group">
+            <label for="faction1-visuals-input" style="color: var(--user-accent);">Faction 1 Visual Description (Optional):</label>
+            <textarea id="faction1-visuals-input" placeholder="E.g., Wears sleek, black tactical gear with glowing red visors."></textarea>
+        </section>
 
-    <div id="load-game-modal" class="screen hidden">
-        <div class="creation-container panel">
-             <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
-            <header class="creation-header"><h3>Load Chronicle</h3></header>
-            <main id="load-game-list" class="creation-form"></main>
-            <footer class="creation-footer">
-                <button id="close-load-modal-btn">Back to Main Menu</button>
-            </footer>
+        <section class="form-group" id="initial-opponent-side-prompt-form-group"><label for="initial-opponent-side-prompt" style="color: var(--opponent-accent);" id="initial-opponent-side-label">Faction 2 Briefing:</label><textarea id="initial-opponent-side-prompt" placeholder="Describe the opposing forces and their objective..."></textarea></section>
+        
+        <!-- NEW: Faction 2 Visuals -->
+        <section class="form-group" id="faction2-visuals-group">
+            <label for="faction2-visuals-input" style="color: var(--opponent-accent);">Faction 2 Visual Description (Optional):</label>
+            <textarea id="faction2-visuals-input" placeholder="E.g., Hulking brutes in patched-up, rusty power armor."></textarea>
+        </section>
+        
+        <div class="form-group">
+            <label for="art-style-selector">Select Art Style:</label>
+            <select id="art-style-selector">
+                <option value="Cinematic Realism">Cinematic Realism</option>
+                <option value="Epic Fantasy Painting">Epic Fantasy Painting</option>
+                <option value="Gritty Anime Style">Gritty Anime Style</option>
+                <option value="Cyberpunk Concept Art">Cyberpunk Concept Art</option>
+                <option value="Vintage Comic Book">Vintage Comic Book</option>
+                <option value="Impressionistic Watercolor">Impressionistic Watercolor</option>
+                <option value="Dark Film Noir">Dark Film Noir</option>
+            </select>
         </div>
-    </div>
 
+    </main><footer class="creation-footer"><button id="start-btn-rpg">Prepare Chronicle</button></footer></div></div>
+    
+    <div id="genesis-screen" class="screen hidden"><div id="health-status-bar" class="hidden"><div class="health-display"><div class="side-name player" id="health-player-name">Faction 1</div><div class="health-bar-outer"><div class="health-bar-inner player" id="health-player-bar"></div></div><div class="status-effects-container" id="player-effects-container"></div></div><div class="health-display"><div class="side-name opponent" id="health-opponent-name">Faction 2</div><div class="health-bar-outer"><div class="health-bar-inner opponent" id="health-opponent-bar"></div></div><div class="status-effects-container opponent" id="opponent-effects-container"></div></div></div><div class="log-overlay" id="chat-log-rpg"></div><div id="loading-overlay" class="hidden"><div class="loader"></div><p class="loading-text" id="loader-text-rpg">Loading...</p></div><div id="input-overlay-container"><div class="input-modal-competitive panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><h2 id="turn-status">Turn Start: Input Actions</h2><form id="chat-form" class="chat-form"><div id="input-fields-container"></div><div class="chat-form-buttons"><button type="button" id="ptt-btn" class="icon-button" title="Push to Talk (or hold Alt key)">🎤</button><button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button><button type="submit" id="submit-turn-btn">Resolve Turn</button><button type="button" id="hide-panel-btn" class="icon-button" title="Hide Panel">▼</button></div></form></div></div><button id="show-panel-btn" class="hidden" title="Show Input Panel">▲</button></div>
+    <div id="load-game-modal" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3>Load Chronicle</h3></header><main id="load-game-list" class="creation-form"></main><footer class="creation-footer"><button id="close-load-modal-btn">Back to Main Menu</button></footer></div></div>
     <script src="script.js"></script>
 </body>
 </html>

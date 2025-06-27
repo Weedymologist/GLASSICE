@@ -16,7 +16,6 @@
 .status-effect.buff { border-color: var(--user-accent); color: var(--user-accent); }
 .status-effect.debuff { border-color: var(--neon-red); color: var(--neon-red); }
 .status-effect .duration { margin-left: 5px; opacity: 0.7; }
-/* --- MODIFIED: Styles for the new dual-input UI --- */
 #input-overlay-container { position: fixed; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; z-index: 50; transition: transform 0.4s ease-in-out; }
 #input-overlay-container.input-overlay--hidden { transform: translateY(100%); }
 .input-modal-competitive { width: 100%; max-width: 900px; padding: 20px; }
@@ -26,6 +25,8 @@
 .input-column label { display: block; text-align: center; margin-bottom: 8px; font-family: var(--font-heading); }
 .input-column label.faction1 { color: var(--user-accent); }
 .input-column label.faction2 { color: var(--opponent-accent); }
+/* MODIFIED: Visual Description textareas are slightly smaller */
+#faction1-visuals-input, #faction2-visuals-input { height: 60px; font-size: 0.9em; }
 .input-column textarea { height: 100px; width: 100%; }
 .chat-form-buttons { display: flex; gap: 10px; width: 100%; }
 .chat-form-buttons button { flex-grow: 0; }
