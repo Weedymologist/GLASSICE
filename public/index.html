@@ -13,9 +13,6 @@
     <div id="genesis-screen" class="screen hidden"><div class="log-overlay" id="chat-log-rpg"></div><div id="loading-overlay" class="hidden"><div class="loader"></div><p class="loading-text" id="loader-text-rpg">Loading...</p></div><div id="competitive-input-overlay" class="hidden"><div class="input-modal-competitive panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><h2 id="turn-status">Turn Start: Player's Actions</h2><div class="player-side-input"><form id="chat-form-player-side" class="chat-form"><textarea id="user-input-player-side" placeholder="Describe your actions..." autocomplete="off"></textarea><div class="chat-form-buttons"><button type="button" id="save-state-btn" class="icon-button" title="Save Game State">💾</button><button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button><button type="submit" id="submit-turn-btn">Submit Turn</button></div></form></div></div></div></div>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            // THIS IS THE FIX. An empty string "" tells the browser to send API requests
-            // to the same server the page was loaded from (i.e., your onrender.com URL).
-            // It MUST NOT be "http://localhost:3001" on the live site.
             const API_URL = "";
             
             let gameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', currentAudio: null, personas: [], gameMode: 'sandbox', latestImageB64: null, gameOver: false };
@@ -39,7 +36,7 @@
                     showScreen('genesis-screen');
                     setLoading(false);
                     await addLog(data.response.narration, 'Director');
-                    await playAudio(data.response.audio_base_64); // This might be null, playAudio handles it
+                    await playAudio(data.response.audio_base_64); 
                     ui.competitiveInputOverlay.classList.remove('hidden');
                 } catch (e) {
                     setLoading(false);
