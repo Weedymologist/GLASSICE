@@ -105,6 +105,34 @@ async function generateImage(shotDescription) {
     }
 }
 
+/**
+ * AI #3: The Voice Actor
+ * Converts narration text to speech using OpenAI TTS.
+ * @param {string} text - The narration text.
+ * @returns {Promise<string|null>} A base64 encoded audio string, or null on failure.
+ */
+async function generateAudio(text) {
+    if (!text || !process.env.OPENAI_API_KEY) {
+        console.warn("[AUDIO] Skipping audio generation: No text or OpenAI API key provided.");
+        return null;
+    }
+    console.log(`[AUDIO] Generating speech for text: "${text.substring(0, 50)}..."`);
+    try {
+        const mp3 = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "alloy", // Other voices: echo, fable, onyx, nova, shimmer
+            input: text,
+        });
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        return buffer.toString('base64');
+    } catch (error) {
+        console.error("[AUDIO] OpenAI TTS generation failed:", error);
+        // Don't throw, just return null so the app can continue without audio
+        return null; 
+    }
+}
+
+
 // --- API Endpoints ---
 
 app.get('/api/personas', (req, res) => {
@@ -123,10 +151,13 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
         // Step 1: Get the narration from the AI Director
         const narration = await fetchNarration(initialPrompt);
         
-        // Step 2: Get a detailed image prompt from the AI Art Director
-        const shotDescription = await generateShotDescription(narration);
+        // Use Promise.all to run image and audio generation in parallel
+        const [shotDescription, audioB64] = await Promise.all([
+            generateShotDescription(narration), // Step 2: Get image prompt
+            generateAudio(narration)             // Step 3 (NEW): Get audio
+        ]);
         
-        // Step 3: Generate the image using the specialized prompt
+        // Step 4: Generate the image using the specialized prompt
         const imageB64 = await generateImage(shotDescription);
         
         // Store scene history
@@ -135,13 +166,14 @@ app.post('/api/dynamic-narrative/start', async (req, res) => {
             playerSideName: playerSideName
         };
         
-        // Step 4: Send the complete package to the frontend
+        // Step 5: Send the complete package to the frontend
         res.status(201).json({
             currentSceneId: sceneId,
             response: {
                 narration: narration,
                 shot_description: shotDescription,
-                image_b64: imageB64
+                image_b64: imageB64,
+                audio_base_64: audioB64 // NEW: Added audio data
             },
             playerSideName: playerSideName
         });

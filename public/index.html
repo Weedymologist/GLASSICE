@@ -21,10 +21,24 @@
             const showScreen = (screenId) => { allScreens.forEach(screen => { if (screen.id === screenId) { screen.classList.add('active'); screen.classList.remove('hidden'); } else { screen.classList.remove('active'); screen.classList.add('hidden'); } }); };
             const fetchAPI = async (endpoint, options = {}) => { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error || `HTTP Error: ${response.status}`); } return response.json(); };
             const typewriter = (el, txt) => new Promise(resolve => { let i = 0; el.innerHTML = ""; const interval = setInterval(() => { if (i < txt.length) { el.innerHTML += txt.charAt(i++); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; } else { clearInterval(interval); resolve(); } }, 15); });
-            const playAudio = (b64) => new Promise(resolve => { if (gameState.currentAudio) gameState.currentAudio.pause(); if (b64) { gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64); gameState.currentAudio.play().catch(e => resolve()); gameState.currentAudio.onended = () => resolve(); } else { resolve(); } });
+
+            const playAudio = (b64) => new Promise(resolve => { 
+                if (gameState.currentAudio) gameState.currentAudio.pause(); 
+                if (b64) { 
+                    gameState.currentAudio = new Audio("data:audio/mp3;base64," + b64);
+                    gameState.currentAudio.play().catch(e => { console.warn("Audio play interrupted:", e); resolve(); });
+                    gameState.currentAudio.onended = () => resolve();
+                    gameState.currentAudio.onerror = (e) => { console.error("Audio playback error:", e); resolve(); };
+                } else { 
+                    resolve(); 
+                } 
+            });
+
             const addLog = (content, author, className) => { const entryDiv = document.createElement('div'); entryDiv.className = 'log-entry'; const authorStrong = document.createElement('strong'); authorStrong.className = className || 'gm'; authorStrong.textContent = `${author}:`; const contentSpan = document.createElement('span'); entryDiv.appendChild(authorStrong); entryDiv.appendChild(contentSpan); ui.chatLogRpg.appendChild(entryDiv); ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight; return typewriter(contentSpan, content || ''); };
             const setLoading = (isLoading, message = "Processing...") => { ui.loaderTextRpg.textContent = message; ui.loadingOverlay.classList.toggle('hidden', !isLoading); };
             const updateBackgroundImage = (b64_image) => { if (b64_image) { document.body.style.backgroundImage = `url(data:image/jpeg;base64,${b64_image})`; document.body.classList.add('image-cover'); gameState.latestImageB64 = b64_image; ui.saveImageBtn.disabled = false; } else { document.body.classList.remove('image-cover'); document.body.style.backgroundImage = ''; } };
+            
+            // --- MODIFIED: Changed the audio/narration timing ---
             const startChronicle = async (body) => {
                 ui.startBtnRpg.disabled = true;
                 ui.startBtnRpg.textContent = "GENERATING...";
@@ -35,8 +49,18 @@
                     updateBackgroundImage(data.response.image_b64);
                     showScreen('genesis-screen');
                     setLoading(false);
-                    await addLog(data.response.narration, 'Director');
-                    await playAudio(data.response.audio_base_64); 
+                    
+                    // --- KEY CHANGE IS HERE ---
+                    // 1. Start the typewriter effect, but DO NOT wait for it to finish.
+                    addLog(data.response.narration, 'Director');
+                    
+                    // 2. After a 1.5-second delay, start playing the audio.
+                    // This allows the text to appear on screen first.
+                    setTimeout(() => {
+                        playAudio(data.response.audio_base_64);
+                    }, 1500); // 1.5-second delay
+                    // --- END OF KEY CHANGE ---
+                    
                     ui.competitiveInputOverlay.classList.remove('hidden');
                 } catch (e) {
                     setLoading(false);
@@ -45,8 +69,10 @@
                     ui.startBtnRpg.textContent = "Prepare Chronicle";
                 }
             };
+
             const prepareSandbox = () => { const body = { gameSettingPrompt: ui.promptRpg.value.trim(), playerSideName: ui.playerSideNameInput.value.trim() || 'Player', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), selectedGmPersonaId: ui.gmSelector.value, gameMode: 'sandbox' }; if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt) return alert("Please describe the setting and your initial strategy."); gameState.playerSideName = body.playerSideName; startChronicle(body); };
             const prepareCompetitive = () => { const body = { gameSettingPrompt: ui.promptRpg.value.trim(), playerSideName: ui.playerSideNameInput.value.trim() || 'Player', opponentSideName: ui.opponentSideNameInput.value.trim() || 'Opponent', initialPlayerSidePrompt: ui.initialPlayerSidePrompt.value.trim(), initialOpponentSidePrompt: ui.initialOpponentSidePrompt.value.trim(), selectedGmPersonaId: 'Tactician_GM', gameMode: 'competitive' }; if (!body.gameSettingPrompt || !body.initialPlayerSidePrompt || !body.initialOpponentSidePrompt) return alert("Please complete all fields for competitive mode."); gameState.playerSideName = body.playerSideName; gameState.opponentSideName = body.opponentSideName; startChronicle(body); };
+            
             try {
                 const personas = await fetchAPI('/api/personas');
                 gameState.personas = personas;
