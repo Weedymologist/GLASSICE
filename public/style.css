@@ -94,34 +94,11 @@ textarea:focus, select:focus, input[type=text]:focus { outline: none; border-col
 .health-bar-inner.player { background: linear-gradient(90deg, var(--user-accent), #00aaff); box-shadow: 0 0 8px var(--user-accent); }
 .health-bar-inner.opponent { background: linear-gradient(90deg, var(--opponent-accent), #ff55cc); box-shadow: 0 0 8px var(--opponent-accent); }
 
-.log-overlay {
-    flex: 1;
-    overflow-y: scroll;
-    width: 100%;
-    max-width: 90%; 
-    margin: 0 auto;
-    margin-bottom: 220px;
-    padding-left: 20px;
-    padding-right: 20px;
-}
-
+.log-overlay { flex: 1; overflow-y: scroll; width: 100%; max-width: 90%; margin: 0 auto; margin-bottom: 220px; padding-left: 20px; padding-right: 20px; }
 .log-overlay::-webkit-scrollbar { width: 6px; }
 .log-overlay::-webkit-scrollbar-track { background: var(--gunmetal-med); }
 .log-overlay::-webkit-scrollbar-thumb { background: var(--neon-cyan); box-shadow: 0 0 5px var(--neon-cyan); }
-
-/* --- THIS IS THE KEY FIX --- */
-.log-entry {
-    margin-bottom: 15px;
-    line-height: 1.7; /* Increased line height slightly for readability */
-    /* Removed background, padding, and border */
-    background: transparent;
-    padding: 0;
-    border-left: none;
-    animation: bootSequence 0.5s forwards;
-    /* Added a strong text shadow to make text readable on any background */
-    text-shadow: 0px 0px 8px rgba(0,0,0,1), 0px 0px 5px rgba(0,0,0,1);
-}
-
+.log-entry { margin-bottom: 15px; line-height: 1.7; background: transparent; padding: 0; border-left: none; animation: bootSequence 0.5s forwards; text-shadow: 0px 0px 8px rgba(0,0,0,1), 0px 0px 5px rgba(0,0,0,1); }
 .log-entry strong { font-weight: 700; padding-right: 10px; color: var(--neon-cyan); display: block; margin-bottom: 5px; }
 .log-entry strong.player-side { color: var(--user-accent); }
 .log-entry strong.opponent-side { color: var(--opponent-accent); }
@@ -156,10 +133,21 @@ textarea:focus, select:focus, input[type=text]:focus { outline: none; border-col
 #ptt-btn.is-recording { color: var(--neon-red); text-shadow: 0 0 10px var(--neon-red); }
 
 #show-panel-btn { position: fixed; bottom: -10px; left: 50%; transform: translateX(-50%); z-index: 49; padding: 8px 30px; border-radius: 10px 10px 0 0; border-bottom: none; }
-
 button { padding: 12px 28px; background-color: transparent; color: var(--neon-cyan); font-family: var(--font-heading); cursor: pointer; border: 2px solid var(--neon-cyan); font-size: 1em; transition: all .2s ease; text-shadow: 0 0 5px var(--neon-cyan); }
 button:hover:not(:disabled) { background-color: var(--neon-cyan); color: var(--gunmetal-dark); box-shadow: 0 0 20px var(--neon-cyan); }
 button:disabled { opacity: .4; cursor: not-allowed; filter: grayscale(50%); }
-
 #load-game-list button { width: 100%; margin-bottom: 15px; text-align: left; padding: 20px; font-size: 1.1em; }
 #load-game-list button span { font-family: var(--font-body); opacity: 0.7; font-size: 0.8em; display: block; margin-top: 5px; }
+
+.system-note { margin-top: 20px; font-size: 0.9em; color: var(--text-primary); opacity: 0.6; }
+
+/* NEW: Style for the Action Cost display */
+.action-cost {
+    text-align: right;
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-top: 5px;
+    height: 1.2em; /* Reserve space to prevent layout shift */
+    font-style: italic;
+    color: var(--neon-yellow);
+}
