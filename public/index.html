@@ -3,11 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlassICE // Chronicle Engine v43.1 (Audio Fix)</title>
+    <title>GlassICE // Chronicle Engine v44.0 (Action Cost)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- All CSS styles are now embedded here -->
+    <style>
+        :root {
+            --gunmetal-dark: #1a1f26;
+            --gunmetal-med: #2a313b;
+            --gunmetal-light: #3a424d;
+            --neon-cyan: #00f6ff;
+            --neon-red: #ff3a6d;
+            --neon-yellow: #fff03a;
+            --user-accent: #00ffaa;
+            --opponent-accent: #ff99ff;
+            --text-primary: #e0e1f0;
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Roboto Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes bootSequence { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        body {
+            background-color: var(--gunmetal-dark);
+            background-image: radial-gradient(var(--gunmetal-light) 1px, transparent 1px);
+            background-size: 25px 25px;
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        body.image-cover {
+            background-size: cover !important;
+            background-position: center center !important;
+            transition: background-image 1s ease-in-out;
+        }
+
+        .screen {
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .screen.active { display: flex; }
+        .hidden { display: none !important; }
+
+        .panel {
+            background-color: rgba(42, 49, 59, 0.85);
+            border: 1px solid var(--gunmetal-light);
+            backdrop-filter: blur(10px);
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 0 20px rgba(0,0,0,0.6);
+        }
+
+        .panel-corner { position: absolute; width: 20px; height: 20px; border-color: var(--neon-cyan); border-style: solid; opacity: 0.7; }
+        .panel-corner.top-left { top: -5px; left: -5px; border-width: 2px 0 0 2px; }
+        .panel-corner.top-right { top: -5px; right: -5px; border-width: 2px 2px 0 0; }
+        .panel-corner.bottom-left { bottom: -5px; left: -5px; border-width: 0 0 2px 2px; }
+        .panel-corner.bottom-right { bottom: -5px; right: -5px; border-width: 0 2px 2px 0; }
+
+        .hub-container { text-align: center; padding: 40px; }
+        .hub-header h1 { font-family: var(--font-heading); color: var(--neon-cyan); font-size: 3em; letter-spacing: 5px; text-shadow: 0 0 10px var(--neon-cyan), 0 0 15px var(--neon-cyan); margin-bottom: 10px; }
+        .hub-header h2 { font-size: 1em; font-weight: 400; color: var(--text-primary); opacity: .8; margin-bottom: 50px; }
+        .mode-selection button { display: block; margin: 25px auto; width: 400px; padding: 20px; font-size: 1.2em; }
+
+        .creation-container { width: 100%; max-width: 900px; padding: 30px; max-height: 90vh; overflow-y: auto; }
+        .creation-header h3 { font-family: var(--font-heading); font-size: 1.5em; text-align: center; margin-bottom: 30px; color: var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 10px; font-weight: 700; color: var(--neon-cyan); }
+        textarea, select, input[type=text] { width: 100%; padding: 12px; background: var(--gunmetal-dark); color: var(--text-primary); border: 1px solid var(--gunmetal-light); font-family: inherit; font-size: 0.95em; resize: vertical; transition: all 0.2s ease; }
+        textarea:focus, select:focus, input[type=text]:focus { outline: none; border-color: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .creation-footer { text-align: center; margin-top: 30px; }
+
+        #genesis-screen { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 20px; padding-bottom: 0; }
+
+        #health-status-bar { width: 100%; max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; gap: 20px; font-family: var(--font-heading); background: rgba(26, 31, 38, 0.8); padding: 10px 20px; border: 1px solid var(--gunmetal-light); backdrop-filter: blur(5px); }
+        .health-display { flex: 1; }
+        .health-display .side-name { font-size: 1em; margin-bottom: 8px; }
+        .health-display .side-name.player { color: var(--user-accent); text-shadow: 0 0 5px var(--user-accent); }
+        .health-display .side-name.opponent { color: var(--opponent-accent); text-shadow: 0 0 5px var(--opponent-accent); text-align: right;}
+        .health-bar-outer { background: var(--gunmetal-dark); border: 1px solid var(--gunmetal-light); height: 20px; padding: 2px; }
+        .health-bar-inner { height: 100%; width: 100%; transition: width 0.5s ease-out; }
+        .health-bar-inner.player { background: linear-gradient(90deg, var(--user-accent), #00aaff); box-shadow: 0 0 8px var(--user-accent); }
+        .health-bar-inner.opponent { background: linear-gradient(90deg, var(--opponent-accent), #ff55cc); box-shadow: 0 0 8px var(--opponent-accent); }
+
+        .log-overlay { flex: 1; overflow-y: scroll; width: 100%; max-width: 90%; margin: 0 auto; margin-bottom: 220px; padding-left: 20px; padding-right: 20px; }
+        .log-overlay::-webkit-scrollbar { width: 6px; }
+        .log-overlay::-webkit-scrollbar-track { background: var(--gunmetal-med); }
+        .log-overlay::-webkit-scrollbar-thumb { background: var(--neon-cyan); box-shadow: 0 0 5px var(--neon-cyan); }
+        .log-entry { margin-bottom: 15px; line-height: 1.7; background: transparent; padding: 0; border-left: none; animation: bootSequence 0.5s forwards; text-shadow: 0px 0px 8px rgba(0,0,0,1), 0px 0px 5px rgba(0,0,0,1); }
+        .log-entry strong { font-weight: 700; padding-right: 10px; color: var(--neon-cyan); display: block; margin-bottom: 5px; }
+        .log-entry strong.player-side { color: var(--user-accent); }
+        .log-entry strong.opponent-side { color: var(--opponent-accent); }
+        .log-entry strong.system-info { color: var(--neon-yellow); }
+        .log-entry strong.system-error { color: var(--neon-red); }
+
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26, 31, 38, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
+        #loading-overlay .loader { border: 4px solid var(--gunmetal-light); border-top: 4px solid var(--neon-cyan); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; box-shadow: 0 0 10px var(--neon-cyan); }
+
+        .status-effects-container { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; height: 25px; }
+        .status-effects-container.opponent { justify-content: flex-end; }
+        .status-effect { background-color: rgba(0,0,0,0.5); border: 1px solid var(--gunmetal-light); padding: 2px 8px; font-size: 0.8em; border-radius: 4px; animation: fadeIn 0.3s; cursor: help; }
+        .status-effect.buff { border-color: var(--user-accent); color: var(--user-accent); }
+        .status-effect.debuff { border-color: var(--neon-red); color: var(--neon-red); }
+        .status-effect .duration { margin-left: 5px; opacity: 0.7; }
+
+        #input-overlay-container { position: fixed; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; z-index: 50; transition: transform 0.4s ease-in-out; }
+        #input-overlay-container.input-overlay--hidden { transform: translateY(100%); }
+        .input-modal-competitive { width: 100%; max-width: 900px; padding: 20px; }
+        #turn-status { font-family: var(--font-heading); margin-bottom: 15px; font-size: 1.2em; text-align: center; }
+        #input-fields-container { display: flex; gap: 20px; margin-bottom: 15px; align-items: flex-start; }
+        .input-column { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .input-column-header { display: flex; justify-content: space-between; align-items: center; }
+        .input-column-header label { font-family: var(--font-heading); }
+        .input-column-header label.faction1 { color: var(--user-accent); }
+        .input-column-header label.faction2 { color: var(--opponent-accent); }
+        #faction1-visuals-input, #faction2-visuals-input { height: 60px; font-size: 0.9em; }
+        .input-column textarea { height: 60px; width: 100%; }
+        .chat-form-buttons { display: flex; gap: 10px; width: 100%; }
+        .chat-form-buttons button { flex-grow: 0; }
+        .chat-form-buttons button#submit-turn-btn { flex-grow: 2; margin-left: auto; }
+        .chat-form-buttons button.icon-button { padding: 10px; font-size: 1.2em; }
+        #ptt-btn.is-recording { color: var(--neon-red); text-shadow: 0 0 10px var(--neon-red); }
+
+        #show-panel-btn { position: fixed; bottom: -10px; left: 50%; transform: translateX(-50%); z-index: 49; padding: 8px 30px; border-radius: 10px 10px 0 0; border-bottom: none; }
+        button { padding: 12px 28px; background-color: transparent; color: var(--neon-cyan); font-family: var(--font-heading); cursor: pointer; border: 2px solid var(--neon-cyan); font-size: 1em; transition: all .2s ease; text-shadow: 0 0 5px var(--neon-cyan); }
+        button:hover:not(:disabled) { background-color: var(--neon-cyan); color: var(--gunmetal-dark); box-shadow: 0 0 20px var(--neon-cyan); }
+        button:disabled { opacity: .4; cursor: not-allowed; filter: grayscale(50%); }
+        #load-game-list button { width: 100%; margin-bottom: 15px; text-align: left; padding: 20px; font-size: 1.1em; }
+        #load-game-list button span { font-family: var(--font-body); opacity: 0.7; font-size: 0.8em; display: block; margin-top: 5px; }
+
+        .system-note { margin-top: 20px; font-size: 0.9em; color: var(--text-primary); opacity: 0.6; }
+
+        .action-item { display: flex; gap: 10px; align-items: flex-start; }
+        .action-item textarea { flex-grow: 1; }
+        .action-item .remove-action-btn { padding: 8px; font-size: 0.8em; height: 38px; border-color: var(--neon-red); color: var(--neon-red); flex-shrink: 0; }
+        .action-item .remove-action-btn:hover { background-color: var(--neon-red); color: var(--gunmetal-dark); }
+        .action-meta { display: flex; justify-content: space-between; align-items: center; padding: 0 5px; }
+        .action-cost { font-size: 0.8em; opacity: 0.8; height: 1.2em; font-style: italic; color: var(--neon-yellow); }
+        .add-action-btn { width: 100%; margin-top: 5px; padding: 5px; font-size: 0.9em; }
+        .total-ap-display { font-size: 0.9em; font-weight: bold; }
+        .total-ap-display.over-limit { color: var(--neon-red); text-shadow: 0 0 5px var(--neon-red); }
+
+        .art-style-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .style-card {
+            border: 2px solid var(--gunmetal-light);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16 / 9;
+        }
+        .style-card:hover {
+            transform: scale(1.05);
+            border-color: var(--neon-cyan);
+        }
+        .style-card.selected {
+            border-color: var(--user-accent);
+            box-shadow: 0 0 15px var(--user-accent);
+        }
+        .style-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.9);
+        }
+        .style-card .style-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 31, 38, 0.8);
+            color: var(--text-primary);
+            font-size: 0.9em;
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <div id="audio-enable-overlay" class="screen active">
@@ -20,11 +218,295 @@
         </div>
     </div>
 
-    <div id="hub-screen" class="screen hidden"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v43.1</h2></header><div class="mode-selection"><button id="launch-quickplay-btn">Launch Quickplay Chronicle</button><button id="launch-sandbox-btn">Launch Custom Sandbox</button><button id="launch-competitive-btn">Launch Custom Competitive</button><button id="load-chronicle-btn">Load Saved Chronicle</button></div></div></div>
-    <div id="quickplay-screen" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3>Quickplay Chronicle</h3></header><main class="creation-form"><section class="form-group"><label for="quickplay-prompt">Describe your idea in one sentence:</label><textarea id="quickplay-prompt" placeholder="E.g., A grizzled space marine fights a horrifying alien queen."></textarea></section><div class="form-group"><label for="quickplay-art-style-selector">Select Art Style:</label><select id="quickplay-art-style-selector"><option value="Cinematic Realism">Cinematic Realism</option><option value="Epic Fantasy Painting">Epic Fantasy Painting</option><option value="Gritty Anime Style">Gritty Anime Style</option><option value="Cyberpunk Concept Art">Cyberpunk Concept Art</option><option value="Vintage Comic Book">Vintage Comic Book</option><option value="Dark Film Noir">Dark Film Noir</option></select></div><div class="form-group"><label for="quickplay-game-mode-selector">Select Game Mode:</label><select id="quickplay-game-mode-selector"><option value="sandbox">Sandbox (Co-op Story)</option><option value="competitive">Competitive (Vs. Mode)</option></select></div></main><footer class="creation-footer"><button id="start-quickplay-btn">Generate & Launch</button><button id="back-to-hub-btn-quickplay">Back to Main Menu</button></footer></div></div>
-    <div id="creation-screen-rpg" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3 id="mode-title">Custom Narrative Setup</h3></header><main class="creation-form"><section class="form-group"><label id="game-setting-label" for="prompt-rpg">Describe the Shared Setting & Conflict:</label><textarea id="prompt-rpg" placeholder="E.g., A rain-lashed cyberpunk metropolis..."></textarea></section><section class="form-group"><label for="player-side-name-input" style="color: var(--user-accent);">Faction 1 Name:</label><input type="text" id="player-side-name-input" placeholder="E.g., The Cygnus Syndicate"></section><section class="form-group" id="opponent-side-name-form-group"><label for="opponent-side-name-input" style="color: var(--opponent-accent);">Faction 2 Name:</label><input type="text" id="opponent-side-name-input" placeholder="E.g., OmniCorp Security"></section><section class="form-group" id="faction1-visuals-group"><label for="faction1-visuals-input" style="color: var(--user-accent);">Faction 1 Visual Description:</label><textarea id="faction1-visuals-input" placeholder="E.g., Wears sleek, black tactical gear with glowing red visors."></textarea></section><section class="form-group" id="faction2-visuals-group"><label for="faction2-visuals-input" style="color: var(--opponent-accent);">Faction 2 Visual Description:</label><textarea id="faction2-visuals-input" placeholder="E.g., Hulking brutes in patched-up, rusty power armor."></textarea></section><div class="form-group"><label for="art-style-selector">Select Art Style:</label><select id="art-style-selector"><option value="Cinematic Realism">Cinematic Realism</option><option value="Epic Fantasy Painting">Epic Fantasy Painting</option><option value="Gritty Anime Style">Gritty Anime Style</option><option value="Cyberpunk Concept Art">Cyberpunk Concept Art</option><option value="Vintage Comic Book">Vintage Comic Book</option><option value="Dark Film Noir">Dark Film Noir</option></select></div></main><footer class="creation-footer"><button id="start-btn-rpg">Prepare Chronicle</button><button id="back-to-hub-btn-custom">Back to Main Menu</button></footer></div></div>
-    <div id="genesis-screen" class="screen hidden"><div id="health-status-bar" class="hidden"><div class="health-display"><div class="side-name player" id="health-player-name">Faction 1</div><div class="health-bar-outer"><div class="health-bar-inner player" id="health-player-bar"></div></div><div class="status-effects-container" id="player-effects-container"></div></div><div class="health-display"><div class="side-name opponent" id="health-opponent-name">Faction 2</div><div class="health-bar-outer"><div class="health-bar-inner opponent" id="health-opponent-bar"></div></div><div class="status-effects-container" id="opponent-effects-container"></div></div></div><div class="log-overlay" id="chat-log-rpg"></div><div id="loading-overlay" class="hidden"><div class="loader"></div><p class="loading-text" id="loader-text-rpg">Loading...</p></div><div id="input-overlay-container"><div class="input-modal-competitive panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><h2 id="turn-status">Turn Start: Input Actions</h2><form id="chat-form" class="chat-form"><div id="input-fields-container"></div><div class="chat-form-buttons"><button type="button" id="ptt-btn" class="icon-button" title="Push to Talk">🎤</button><button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button><button type="submit" id="submit-turn-btn">Resolve Turn</button><button type="button" id="hide-panel-btn" class="icon-button" title="Hide Panel">▼</button></div></form></div></div><button id="show-panel-btn" class="hidden" title="Show Input Panel">▲</button></div>
-    <div id="load-game-modal" class="screen hidden"><div class="creation-container panel"><div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div><header class="creation-header"><h3>Load Chronicle</h3></header><main id="load-game-list" class="creation-form"></main><footer class="creation-footer"><button id="close-load-modal-btn">Back to Main Menu</button></footer></div></div>
-    <script src="script.js"></script>
+    <div id="hub-screen" class="screen hidden"><div class="hub-container"><header class="hub-header"><h1>GlassICE</h1><h2>Chronicle Engine v44.0</h2></header><div class="mode-selection"><button id="launch-quickplay-btn">Launch Quickplay Chronicle</button><button id="launch-sandbox-btn">Launch Custom Sandbox</button><button id="launch-competitive-btn">Launch Custom Competitive</button><button id="load-chronicle-btn">Load Saved Chronicle</button></div></div></div>
+    
+    <div id="quickplay-screen" class="screen hidden">
+        <div class="creation-container panel">
+            <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
+            <header class="creation-header"><h3>Quickplay Chronicle</h3></header>
+            <main class="creation-form">
+                <section class="form-group">
+                    <label for="quickplay-prompt">Describe your idea in one sentence:</label>
+                    <textarea id="quickplay-prompt" placeholder="E.g., A grizzled space marine fights a horrifying alien queen."></textarea>
+                </section>
+                
+                <div class="form-group">
+                    <label>Select Art Style:</label>
+                    <div id="quickplay-art-style-grid" class="art-style-grid"></div>
+                    <input type="hidden" id="quickplay-art-style-selector" value="Cinematic Realism">
+                </div>
+                
+                <div class="form-group">
+                    <label for="quickplay-game-mode-selector">Select Game Mode:</label>
+                    <select id="quickplay-game-mode-selector">
+                        <option value="sandbox">Sandbox (Co-op Story)</option>
+                        <option value="competitive">Competitive (Vs. Mode)</option>
+                    </select>
+                </div>
+            </main>
+            <footer class="creation-footer">
+                <button id="start-quickplay-btn">Generate & Launch</button>
+                <button id="back-to-hub-btn-quickplay">Back to Main Menu</button>
+            </footer>
+        </div>
+    </div>
+    
+    <div id="creation-screen-rpg" class="screen hidden">
+        <div class="creation-container panel">
+            <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
+            <header class="creation-header"><h3 id="mode-title">Custom Narrative Setup</h3></header>
+            <main class="creation-form">
+                <section class="form-group">
+                    <label id="game-setting-label" for="prompt-rpg">Describe the Shared Setting & Conflict:</label>
+                    <textarea id="prompt-rpg" placeholder="E.g., A rain-lashed cyberpunk metropolis..."></textarea>
+                </section>
+                <section class="form-group">
+                    <label for="player-side-name-input" style="color: var(--user-accent);">Faction 1 Name:</label>
+                    <input type="text" id="player-side-name-input" placeholder="E.g., The Cygnus Syndicate">
+                </section>
+                <section class="form-group" id="opponent-side-name-form-group">
+                    <label for="opponent-side-name-input" style="color: var(--opponent-accent);">Faction 2 Name:</label>
+                    <input type="text" id="opponent-side-name-input" placeholder="E.g., OmniCorp Security">
+                </section>
+                <section class="form-group" id="faction1-visuals-group">
+                    <label for="faction1-visuals-input" style="color: var(--user-accent);">Faction 1 Visual Description:</label>
+                    <textarea id="faction1-visuals-input" placeholder="E.g., Wears sleek, black tactical gear with glowing red visors."></textarea>
+                </section>
+                <section class="form-group" id="faction2-visuals-group">
+                    <label for="faction2-visuals-input" style="color: var(--opponent-accent);">Faction 2 Visual Description:</label>
+                    <textarea id="faction2-visuals-input" placeholder="E.g., Hulking brutes in patched-up, rusty power armor."></textarea>
+                </section>
+                
+                <div class="form-group">
+                    <label>Select Art Style:</label>
+                    <div id="art-style-grid" class="art-style-grid"></div>
+                    <input type="hidden" id="art-style-selector" value="Cinematic Realism">
+                </div>
+            </main>
+            <footer class="creation-footer">
+                <button id="start-btn-rpg">Prepare Chronicle</button>
+                <button id="back-to-hub-btn-custom">Back to Main Menu</button>
+            </footer>
+        </div>
+    </div>
+    
+    <div id="genesis-screen" class="screen hidden">
+        <div id="health-status-bar" class="hidden">
+            <div class="health-display">
+                <div class="side-name player" id="health-player-name">Faction 1</div>
+                <div class="health-bar-outer"><div class="health-bar-inner player" id="health-player-bar"></div></div>
+                <div class="status-effects-container" id="player-effects-container"></div>
+            </div>
+            <div class="health-display">
+                <div class="side-name opponent" id="health-opponent-name">Faction 2</div>
+                <div class="health-bar-outer"><div class="health-bar-inner opponent" id="health-opponent-bar"></div></div>
+                <div class="status-effects-container" id="opponent-effects-container"></div>
+            </div>
+        </div>
+        <div class="log-overlay" id="chat-log-rpg"></div>
+        <div id="loading-overlay" class="hidden">
+            <div class="loader"></div>
+            <p class="loading-text" id="loader-text-rpg">Loading...</p>
+        </div>
+        <div id="input-overlay-container">
+            <div class="input-modal-competitive panel">
+                <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
+                <h2 id="turn-status">Turn Start: Input Actions</h2>
+                <form id="chat-form" class="chat-form">
+                    <div id="input-fields-container"></div>
+                    <div class="chat-form-buttons">
+                        <button type="button" id="ptt-btn" class="icon-button" title="Push to Talk">🎤</button>
+                        <button type="button" id="save-image-btn" class="icon-button" title="Save Current Image" disabled>🖼️</button>
+                        <button type="submit" id="submit-turn-btn">Resolve Turn</button>
+                        <button type="button" id="hide-panel-btn" class="icon-button" title="Hide Panel">▼</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <button id="show-panel-btn" class="hidden" title="Show Input Panel">▲</button>
+    </div>
+
+    <div id="load-game-modal" class="screen hidden">
+        <div class="creation-container panel">
+            <div class="panel-corner top-left"></div><div class="panel-corner top-right"></div><div class="panel-corner bottom-left"></div><div class="panel-corner bottom-right"></div>
+            <header class="creation-header"><h3>Load Chronicle</h3></header>
+            <main id="load-game-list" class="creation-form"></main>
+            <footer class="creation-footer">
+                <button id="close-load-modal-btn">Back to Main Menu</button>
+            </footer>
+        </div>
+    </div>
+    
+    <!-- All JavaScript is now embedded here -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const API_URL = "";
+            const ACTION_POINTS_PER_TURN = 3;
+            let gameState = { currentSceneId: null, playerSideName: 'Player', opponentSideName: 'Opponent', gameMode: 'sandbox', gameOver: false, isVsAI: false, playerEffects: [], opponentEffects: [], artStyle: 'Cinematic Realism', faction1Visuals: '', faction2Visuals: '' };
+            const ui = Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(el => [el.id.replace(/-(\w)/g, (m, p) => p.toUpperCase()), el]));
+            const allScreens = document.querySelectorAll('.screen');
+            const showScreen = (screenId) => { allScreens.forEach(screen => { if (screen.id === screenId) { screen.classList.add('active'); screen.classList.remove('hidden'); } else { screen.classList.remove('active'); screen.classList.add('hidden'); } }); };
+            const fetchAPI = async (endpoint, options = {}) => { const response = await fetch(`${API_URL}${endpoint}`, options); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: `HTTP Error: ${response.status}` })); throw new Error(errorData.error || `HTTP Error: ${response.status}`); } return response.json(); };
+            
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+            let audioContext;
+            let currentAudioSource = null;
+
+            const setLoading = (isLoading, text = 'Loading...') => {
+                ui.loadingOverlay.classList.toggle('hidden', !isLoading);
+                if (isLoading) {
+                    ui.loaderTextRpg.textContent = text;
+                }
+            };
+
+            const addLog = (text, speaker, styleClass = '') => {
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'log-entry';
+                const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+                
+                const speakerElement = `<strong class="${styleClass}">${speaker}</strong>`;
+                const contentSpan = document.createElement('span');
+                
+                entryDiv.innerHTML = speakerElement;
+                entryDiv.appendChild(contentSpan);
+                ui.chatLogRpg.appendChild(entryDiv);
+            
+                if (speaker === 'Director' && formattedText.length > 0) {
+                    let i = 0;
+                    contentSpan.innerHTML = '';
+                    const typeWriter = () => {
+                        if (i < formattedText.length) {
+                            if (formattedText.charAt(i) === '<') {
+                                const tagEnd = formattedText.indexOf('>', i);
+                                contentSpan.innerHTML += formattedText.substring(i, tagEnd + 1);
+                                i = tagEnd;
+                            } else {
+                                contentSpan.innerHTML += formattedText.charAt(i);
+                            }
+                            i++;
+                            ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight;
+                            setTimeout(typeWriter, 25);
+                        }
+                    };
+                    typeWriter();
+                } else {
+                    contentSpan.innerHTML = formattedText;
+                    ui.chatLogRpg.scrollTop = ui.chatLogRpg.scrollHeight;
+                }
+            };
+
+            const updateBackgroundImage = (imageB64) => { const body = document.body; ui.saveImageBtn.disabled = !imageB64; if (imageB64) { body.style.backgroundImage = `url(data:image/jpeg;base64,${imageB64})`; body.classList.add('image-cover'); ui.saveImageBtn.onclick = () => { const link = document.createElement('a'); link.href = `data:image/jpeg;base64,${imageB64}`; link.download = `glassice-chronicle-${Date.now()}.jpg`; link.click(); }; } else { body.style.backgroundImage = ''; body.classList.remove('image-cover'); ui.saveImageBtn.onclick = null; } };
+            const playAudio = async (b64) => { if (currentAudioSource) { currentAudioSource.stop(); } if (!audioContext || !b64) { return; } try { const audioData = atob(b64); const aBuffer = new Uint8Array(audioData.length); for(let i=0; i < audioData.length; i++) { aBuffer[i] = audioData.charCodeAt(i); } const decodedBuffer = await audioContext.decodeAudioData(aBuffer.buffer); currentAudioSource = audioContext.createBufferSource(); currentAudioSource.buffer = decodedBuffer; currentAudioSource.connect(audioContext.destination); currentAudioSource.start(0); } catch (error) { console.error("Failed to decode or play audio:", error); addLog("Could not play narrator audio.", "SYSTEM ERROR", "system-error"); } };
+            
+            const updateStatusEffects = (playerEffects, opponentEffects) => {
+                const statusEffectDescriptions = {
+                    "Burning": "Takes 5 damage at the start of the turn.",
+                    "Stunned": "Cannot perform actions this turn.",
+                    "Suppressed": "Actions cost 1 additional AP.",
+                    "Exposed": "Takes 50% more damage from attacks.",
+                    "Guarded": "Takes 50% less damage from attacks."
+                };
+
+                const renderEffects = (container, effects) => {
+                    container.innerHTML = '';
+                    if (effects && effects.length > 0) {
+                        effects.forEach(effect => {
+                            const effectDiv = document.createElement('div');
+                            effectDiv.className = 'status-effect debuff';
+                            effectDiv.innerHTML = `${effect.name} <span class="duration">${effect.duration}</span>`;
+                            effectDiv.title = statusEffectDescriptions[effect.name] || `Effect: ${effect.name}. No description available.`;
+                            container.appendChild(effectDiv);
+                        });
+                    }
+                };
+                renderEffects(ui.playerEffectsContainer, playerEffects);
+                renderEffects(ui.opponentEffectsContainer, opponentEffects);
+            };
+
+            const updateHealthDisplay = (playerHP, opponentHP) => { ui.healthPlayerName.textContent = gameState.playerSideName; ui.healthOpponentName.textContent = gameState.opponentSideName; ui.healthPlayerBar.style.width = `${playerHP}%`; ui.healthOpponentBar.style.width = `${opponentHP}%`; ui.healthStatusBar.classList.toggle('hidden', gameState.gameMode !== 'competitive'); };
+            const debounce = (func, delay) => { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; };
+            const updateTotalCosts = () => { ['faction1', 'faction2'].forEach(factionId => { const column = document.getElementById(`${factionId}-column`); if (!column) return; const actionItems = column.querySelectorAll('.action-item'); let totalCost = 0; actionItems.forEach(item => { const costText = item.querySelector('.action-cost').textContent; const costMatch = costText.match(/(\d+)/); if (costMatch) totalCost += parseInt(costMatch[1], 10); }); const totalAPDisplay = column.querySelector('.total-ap-display'); totalAPDisplay.textContent = `Total AP: ${totalCost} / ${ACTION_POINTS_PER_TURN}`; totalAPDisplay.classList.toggle('over-limit', totalCost > ACTION_POINTS_PER_TURN); }); const p1Over = document.getElementById('faction1-ap-total')?.classList.contains('over-limit'); const p2Over = document.getElementById('faction2-ap-total')?.classList.contains('over-limit'); ui.submitTurnBtn.disabled = p1Over || p2Over || false; };
+            const analyzeAndDisplayCost = async (textarea) => { const actionText = textarea.value.trim(); const costDisplay = textarea.closest('.action-item').parentElement.querySelector('.action-cost'); if (!costDisplay) return; if (actionText.length < 5) { costDisplay.textContent = 'Cost: 1'; updateTotalCosts(); return; } costDisplay.textContent = 'Analyzing...'; try { const result = await fetchAPI('/api/analyze-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: actionText }) }); costDisplay.textContent = `Cost: ${result.cost}`; } catch (e) { console.error("Action cost analysis failed:", e); costDisplay.textContent = 'Cost: Error'; } updateTotalCosts(); };
+            const createActionItem = (factionId) => { const actionItem = document.createElement('div'); actionItem.className = 'action-item'; const textareaId = `${factionId}-action-${Date.now()}`; actionItem.innerHTML = `<textarea id="${textareaId}" placeholder="Describe an action..."></textarea><button type="button" class="remove-action-btn" title="Remove Action">X</button>`; const metaDiv = document.createElement('div'); metaDiv.className = 'action-meta'; metaDiv.innerHTML = `<div class="action-cost">Cost: 1</div>`; const wrapper = document.createElement('div'); wrapper.appendChild(actionItem); wrapper.appendChild(metaDiv); actionItem.querySelector('textarea').addEventListener('input', debounce((e) => analyzeAndDisplayCost(e.target), 800)); actionItem.querySelector('.remove-action-btn').addEventListener('click', (e) => { e.target.closest('.action-item').parentElement.remove(); updateTotalCosts(); }); return wrapper; };
+            const setupInputUI = (mode) => { const container = ui.inputFieldsContainer; container.innerHTML = ''; if (mode === 'competitive') { const playerColumnHTML = `<div class="input-column" id="faction1-column"><div class="input-column-header"><label class="faction1">${gameState.playerSideName}</label><div class="total-ap-display" id="faction1-ap-total">Total AP: 1 / ${ACTION_POINTS_PER_TURN}</div></div><div id="faction1-actions-list"></div><button type="button" class="add-action-btn" data-faction="faction1">+ Add Action</button></div>`; if (gameState.isVsAI) { ui.turnStatus.textContent = `Turn Start: Your Actions vs. ${gameState.opponentSideName}`; container.innerHTML = playerColumnHTML; } else { ui.turnStatus.textContent = `Turn Start: Input Actions`; const opponentColumnHTML = `<div class="input-column" id="faction2-column"><div class="input-column-header"><label class="faction2">${gameState.opponentSideName}</label><div class="total-ap-display" id="faction2-ap-total">Total AP: 1 / ${ACTION_POINTS_PER_TURN}</div></div><div id="faction2-actions-list"></div><button type="button" class="add-action-btn" data-faction="faction2">+ Add Action</button></div>`; container.innerHTML = playerColumnHTML + opponentColumnHTML; } document.getElementById('faction1-actions-list').appendChild(createActionItem('faction1')); if (document.getElementById('faction2-actions-list')) { document.getElementById('faction2-actions-list').appendChild(createActionItem('faction2')); } container.querySelectorAll('.add-action-btn').forEach(btn => { btn.addEventListener('click', (e) => { const factionId = e.target.dataset.faction; document.getElementById(`${factionId}-actions-list`).appendChild(createActionItem(factionId)); updateTotalCosts(); }); }); } else { ui.turnStatus.textContent = `Narrative Mode`; container.innerHTML = `<div class="input-column" style="max-width: 600px; margin: auto;"><textarea id="sandbox-input" placeholder="What happens next?"></textarea></div>`; container.querySelector('textarea').style.height = '120px'; } };
+            const updateUIFromState = (data) => { if (data.switchedToVsAI) { gameState.isVsAI = true; addLog(`The situation has escalated! You are now in combat with ${data.opponentSideName}.`, "SYSTEM INFO", "system-info"); } Object.assign(gameState, data); updateHealthDisplay(gameState.playerHP, gameState.opponentHP); updateStatusEffects(gameState.playerEffects, gameState.opponentEffects); setupInputUI(gameState.gameMode); if(data.response) { updateBackgroundImage(data.response.image_b_64); if(data.response.narration) addLog(data.response.narration, 'Director'); if (data.response.turn_summary) { addLog(data.response.turn_summary, 'Tactical Summary', 'system-info'); } playAudio(data.response.audio_base_64); } if (gameState.gameOver) { ui.turnStatus.textContent = "CHRONICLE CONCLUDED"; ui.submitTurnBtn.disabled = true; } };
+            const startChronicle = async (body, endpoint = '/api/dynamic-narrative/start') => { gameState.isVsAI = (body.gameMode === 'competitive' && !body.opponentSideName); setLoading(true, "Generating opening scene & first image..."); try { const data = await fetchAPI(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); showScreen('genesis-screen'); updateUIFromState(data); } catch (e) { alert("Failed to start chronicle: " + e.message); } finally { setLoading(false); if(ui.startBtnRpg) ui.startBtnRpg.disabled = false; if(ui.startQuickplayBtn) ui.startQuickplayBtn.disabled = false; } };
+            const submitTurn = async () => { let payload = {}; if (gameState.gameMode === 'competitive') { const getActions = (factionId) => Array.from(document.querySelectorAll(`#${factionId}-column textarea`)).map(ta => ta.value.trim()).filter(Boolean); const playerActions = getActions('faction1'); if (playerActions.length === 0) return alert('Please enter at least one action for your faction.'); payload.playerActions = playerActions; if (!gameState.isVsAI) { const opponentActions = getActions('faction2'); if (opponentActions.length === 0) return alert('Please enter at least one action for the opposing faction.'); payload.opponentActions = opponentActions; } } else { const action = document.getElementById('sandbox-input').value.trim(); if (!action) return alert('Please describe what happens next.'); payload = { playerAction: action }; } ui.submitTurnBtn.disabled = true; setLoading(true, `Resolving Turn... ${gameState.isVsAI ? '(Awaiting AI response...)' : ''}`); document.querySelectorAll('#input-fields-container textarea').forEach(ta => ta.disabled = true); try { const data = await fetchAPI(`/api/dynamic-narrative/${gameState.currentSceneId}/turn`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); updateUIFromState(data); } catch (e) { addLog(`Error resolving turn: ${e.message}`, 'SYSTEM ERROR', 'system-error'); if (!gameState.gameOver) { document.querySelectorAll('#input-fields-container textarea').forEach(ta => { ta.disabled = false; }); ui.submitTurnBtn.disabled = false; } } finally { setLoading(false); } };
+            const prepareCustomSandbox = () => { const body = { gameSettingPrompt: ui.promptRpg.value.trim(), playerSideName: ui.playerSideNameInput.value.trim() || 'Player', gameMode: 'sandbox', artStyle: document.getElementById('art-style-selector').value, faction1Visuals: ui.faction1VisualsInput.value.trim() }; if (!body.gameSettingPrompt) return alert("Please describe the setting."); startChronicle(body); };
+            const prepareCustomCompetitive = () => { const body = { gameSettingPrompt: `--- SHARED SETTING ---\n${ui.promptRpg.value.trim()}`, playerSideName: ui.playerSideNameInput.value.trim() || 'Faction 1', opponentSideName: ui.opponentSideNameInput.value.trim() || 'Faction 2', gameMode: 'competitive', artStyle: document.getElementById('art-style-selector').value, faction1Visuals: ui.faction1VisualsInput.value.trim(), faction2Visuals: ui.faction2VisualsInput.value.trim() }; if (!body.gameSettingPrompt || !body.playerSideName || !body.opponentSideName) return alert("Please complete all description fields for competitive mode."); startChronicle(body); };
+            const loadSpecificGame = async (sceneId) => { setLoading(true, "Loading Chronicle..."); try { const data = await fetchAPI(`/api/chronicles/${sceneId}`); showScreen('genesis-screen'); updateUIFromState(data); } catch (e) { alert("Failed to load chronicle: " + e.message); showScreen('hub-screen'); } finally { setLoading(false); } };
+            const showLoadGameModal = async () => { showScreen('load-game-modal'); const loadList = ui.loadGameList; loadList.innerHTML = '<p>Fetching saved chronicles...</p>'; try { const chronicles = await fetchAPI('/api/chronicles'); loadList.innerHTML = ''; if (chronicles.length === 0) { loadList.innerHTML = '<p>No saved chronicles found.</p>'; return; } chronicles.forEach(chronicle => { const btn = document.createElement('button'); btn.innerHTML = `${chronicle.playerSideName} <span>vs ${chronicle.opponentSideName}</span>`; btn.onclick = () => loadSpecificGame(chronicle.sceneId); loadList.appendChild(btn); }); } catch (e) { loadList.innerHTML = `<p class="system-error">Error fetching chronicles: ${e.message}</p>`; } };
+            const setupUIEnhancements = () => { ui.hidePanelBtn.addEventListener('click', () => { ui.inputOverlayContainer.classList.add('input-overlay--hidden'); ui.showPanelBtn.classList.remove('hidden'); }); ui.showPanelBtn.addEventListener('click', () => { ui.inputOverlayContainer.classList.remove('input-overlay--hidden'); ui.showPanelBtn.classList.add('hidden'); }); };
+            const setupCreationScreen = (mode) => { const isSandbox = mode === 'sandbox'; showScreen('creation-screen-rpg'); ui.modeTitle.textContent = isSandbox ? "Custom Sandbox Setup" : "Custom Competitive Setup"; const competitiveFields = [ui.opponentSideNameFormGroup, ui.faction2VisualsGroup]; competitiveFields.forEach(field => field.classList.toggle('hidden', isSandbox)); };
+            const initializePushToTalk = async () => { if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { console.warn("PTT is not supported on this browser."); ui.pttBtn.disabled = true; return; } try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = async () => { setLoading(true, "Transcribing speech..."); const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); audioChunks = []; const reader = new FileReader(); reader.readAsDataURL(audioBlob); reader.onloadend = async () => { const audioB64 = reader.result; try { const response = await fetchAPI('/api/transcribe-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audioB64 }) }); const activeTextarea = document.querySelector('#faction1-actions-list textarea:last-of-type') || document.getElementById('sandbox-input'); if (activeTextarea) { activeTextarea.value = response.transcription; activeTextarea.dispatchEvent(new Event('input', { bubbles: true })); } } catch (e) { addLog(`Speech-to-text failed: ${e.message}`, 'SYSTEM ERROR', 'system-error'); } finally { setLoading(false); } }; }; ui.pttBtn.disabled = false; } catch (err) { addLog("Microphone access denied. PTT is disabled.", "SYSTEM ERROR", "system-error"); console.error("Mic permissions failed:", err); ui.pttBtn.disabled = true; } };
+            const prepareQuickplay = () => { const prompt = ui.quickplayPrompt.value.trim(); if (!prompt) return alert("Please enter your idea for the chronicle."); ui.startQuickplayBtn.disabled = true; const body = { prompt: prompt, artStyle: ui.quickplayArtStyleSelector.value, gameMode: ui.quickplayGameModeSelector.value }; startChronicle(body, '/api/quickplay/start'); };
+
+            const artStyles = [
+                { name: "Cinematic Realism", img: "images/style_cinematic.jpg" },
+                { name: "Epic Fantasy Painting", img: "images/style_fantasy.jpg" },
+                { name: "Gritty Anime Style", img: "images/style_anime.jpg" },
+                { name: "Cyberpunk Concept Art", img: "images/style_cyberpunk.jpg" },
+                { name: "Vintage Comic Book", img: "images/style_comic.jpg" },
+                { name: "Dark Film Noir", img: "images/style_noir.jpg" }
+            ];
+
+            const setupArtStyleSelectors = () => {
+                const grids = {
+                    'quickplay-art-style-grid': ui.quickplayArtStyleSelector,
+                    'art-style-grid': ui.artStyleSelector
+                };
+
+                for (const gridId in grids) {
+                    const grid = document.getElementById(gridId);
+                    const input = grids[gridId];
+                    if (!grid || !input) continue;
+
+                    grid.innerHTML = '';
+                    artStyles.forEach(style => {
+                        const card = document.createElement('div');
+                        card.className = 'style-card';
+                        card.dataset.value = style.name;
+                        card.innerHTML = `<img src="${style.img}" alt="${style.name} preview"><div class="style-name">${style.name}</div>`;
+                        if (style.name === input.value) {
+                            card.classList.add('selected');
+                        }
+                        card.addEventListener('click', () => {
+                            grid.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+                            card.classList.add('selected');
+                            input.value = style.name;
+                        });
+                        grid.appendChild(card);
+                    });
+                }
+            };
+
+            try {
+                ui.enableAudioBtn.addEventListener('click', () => { if (!audioContext) { audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') { audioContext.resume(); } } showScreen('hub-screen'); });
+                ui.launchQuickplayBtn.addEventListener('click', () => showScreen('quickplay-screen'));
+                ui.launchSandboxBtn.addEventListener('click', () => setupCreationScreen('sandbox'));
+                ui.launchCompetitiveBtn.addEventListener('click', () => setupCreationScreen('competitive'));
+                ui.loadChronicleBtn.addEventListener('click', showLoadGameModal);
+                ui.startQuickplayBtn.addEventListener('click', prepareQuickplay);
+                ui.backToHubBtnQuickplay.addEventListener('click', () => showScreen('hub-screen'));
+                ui.startBtnRpg.addEventListener('click', () => { ui.startBtnRpg.disabled = true; const isSandbox = ui.modeTitle.textContent.includes('Sandbox'); if (isSandbox) { prepareCustomSandbox(); } else { prepareCustomCompetitive(); } });
+                ui.backToHubBtnCustom.addEventListener('click', () => showScreen('hub-screen'));
+                ui.closeLoadModalBtn.addEventListener('click', () => showScreen('hub-screen'));
+                ui.chatForm.addEventListener('submit', (e) => { e.preventDefault(); if (!gameState.gameOver) { submitTurn(); } });
+                ui.pttBtn.addEventListener('mousedown', () => { if (mediaRecorder && !isRecording) { isRecording = true; mediaRecorder.start(); ui.pttBtn.classList.add('is-recording'); } });
+                ui.pttBtn.addEventListener('mouseup', () => { if (mediaRecorder && isRecording) { isRecording = false; mediaRecorder.stop(); ui.pttBtn.classList.remove('is-recording'); } });
+                ui.pttBtn.addEventListener('mouseleave', () => { if (mediaRecorder && isRecording) { isRecording = false; mediaRecorder.stop(); ui.pttBtn.classList.remove('is-recording'); } });
+                
+                setupUIEnhancements();
+                initializePushToTalk();
+                setupArtStyleSelectors();
+
+            } catch(e) {
+                alert("Could not connect to the GlassICE server. Please ensure the server is running and refresh the page.");
+                console.error("Initialization failed:", e);
+            }
+        });
+    </script>
 </body>
 </html>
