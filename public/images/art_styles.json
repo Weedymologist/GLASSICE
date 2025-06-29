@@ -1,0 +1,54 @@
+{
+  "artStyles": [
+    {
+      "name": "Cinematic Realism",
+      "directory": "./images/cinematic_realism",
+      "preview": "./images/cinematic_realism/previewCinematicRealism.jpg"
+    },
+    {
+      "name": "Epic Fantasy Painting",
+      "directory": "./images/epic_fantasy_painting",
+      "preview": "./images/epic_fantasy_painting/previewEpicFantasyPainting.jpg"
+    },
+    {
+      "name": "Gritty Anime Style",
+      "directory": "./images/gritty_anime_style",
+      "preview": "./images/gritty_anime_style/previewGrittyAnimeStyle.jpg"
+    },
+    {
+      "name": "Cyberpunk Concept Art",
+      "directory": "./images/cyberpunk_concept_art",
+      "preview": "./images/cyberpunk_concept_art/previewCyberpunkConceptArt.jpg"
+    },
+    {
+      "name": "Vintage Comic Book",
+      "directory": "./images/vintage_comic_book",
+      "preview": "./images/vintage_comic_book/previewVintageComicBook.jpg"
+    },
+    {
+      "name": "Dark Film Noir",
+      "directory": "./images/dark_film_noir",
+      "preview": "./images/dark_film_noir/previewDarkFilmNoir.jpg"
+    },
+    {
+      "name": "Modern Chic",
+      "directory": "./images/modern_chic",
+      "preview": "./images/modern_chic/previewModernChic.jpg"
+    },
+    {
+      "name": "Watercolor",
+      "directory": "./images/watercolor",
+      "preview": "./images/watercolor/previewWatercolor.jpg"
+    },
+    {
+      "name": "Renaissance Painting",
+      "directory": "./images/renaissance_painting",
+      "preview": "./images/renaissance_painting/previewRenaissancePainting.jpg"
+    },
+    {
+      "name": "Pulp Art",
+      "directory": "./images/pulp_art",
+      "preview": "./images/pulp_art/previewPulpArt.jpg"
+    }
+  ]
+}
