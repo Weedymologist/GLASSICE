@@ -79,5 +79,28 @@
     "opponentHP": 100,
     "playerEffects": [],
     "opponentEffects": []
+  },
+  "scene_1751159384569": {
+    "history": [
+      {
+        "role": "system",
+        "content": "The scene begins."
+      },
+      {
+        "role": "assistant",
+        "content": "In a world where the ordinary folds into fantasy, a new wave of exhilaration takes center stage. The Nacho Knights, champions of culinary delight and party vigor, gather at the fringes of reality beneath the blaring moonlight. Their beacon is an invitation to lose oneself in the rhythm of the night—a festival unbound by time, where the savory meets the spectacular. Here, on the sprawling sands of a neon-clad beach, they call forth fellow revelers for a night of unmatched revelry.\n\nAcross this magic-bound land, the sounds of the world converge—the blend of laughter, the crashing of waves, and the pounding beats echo through the warm, midnight air. The World's canvas is set aglow by shimmering lights entwined around palm trees, casting intricate patterns across the sands. It is a call to serenity and chaos wrapped in one, as the bikini-clad crowd moves like waves across the shoreline. It is here, surrounded by breathtaking vistas and pulsating energy, that the essence of true magic is conjured in an endless celebration of life and motion."
+      }
+    ],
+    "short_term_memory": [],
+    "playerSideName": "The Nacho Knights",
+    "opponentSideName": "The World",
+    "gameMode": "sandbox",
+    "artStyle": "Dark Film Noir",
+    "faction1Visuals": "The Nacho Knights are clad in ornate armor bedecked with vibrant, metallic patterns resembling fiery jalapeños and golden nacho cheese. Every piece of armor glistens under the neon lights, making them appear ethereal against the backdrop of the starlit night. Cascading down their backs are capes made from sheer, salsa-red fabric, fluttering with every beat of the rave. Their faces are painted in flamboyant hues, with masks adorned with tiny, twinkling lights that dance along to the party's rhythm.",
+    "faction2Visuals": "The World is an endless tapestry of contrasting lights and sounds, where sprawling beachside dunes meet a bustling cityscape under a blanket of shimmering stars. At its heart, a colossal beach with soft sands stretches out, lined with palm trees strung with colorful, twinkling lights. The azure waves crash gently against the shore, reflecting the iridescent glow of the bikini party that ebbs and flows with laughter and music. Skyscrapers, adorned with ever-changing illumination, rise in the background, creating an otherworldly fusion of nature and neon.",
+    "playerHP": 100,
+    "opponentHP": 100,
+    "playerEffects": [],
+    "opponentEffects": []
   }
 }
